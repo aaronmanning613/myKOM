@@ -40,7 +40,7 @@ Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck 
 - [x] **F3** `docker-compose.yml` (Postgres 16, host port 5433, named volume), Drizzle config, a DB client module, an initial migration, and `.env.example`. `/api/health` now also reports whether the DB is reachable. **Check:** `docker compose up -d && pnpm db:migrate` succeeds, and health reports the DB as up.
 - [x] **F4** `apps/web`: Vite + React + TypeScript + Tailwind, Vitest + Testing Library, and the `/api` proxy. The home page fetches and shows the health status. **Check:** the web test passes and the web app builds.
 - [x] **F5** Root `pnpm dev` runs the API and web together, and `README.md` gets local run instructions (prerequisites, `.env` setup, Docker, migrate, dev). **Check:** start `pnpm dev`, curl both ports, then stop it.
-- [ ] **E1** End-to-end testing: `@playwright/test` in an `e2e/` workspace package with a config that uses `channel: 'chrome'` and starts the API and web servers itself (`webServer`), a root `pnpm test:e2e` script, and a first test that the home page shows the health status. Keep `pnpm test` for unit tests only. **Check:** `pnpm test:e2e` passes, and the UI verification convention is followed (click through the home page with the Playwright MCP browser).
+- [x] **E1** End-to-end testing: `@playwright/test` in an `e2e/` workspace package with a config that uses `channel: 'chrome'` and starts the API and web servers itself (`webServer`), a root `pnpm test:e2e` script, and a first test that the home page shows the health status. Keep `pnpm test` for unit tests only. **Check:** `pnpm test:e2e` passes, and the UI verification convention is followed (click through the home page with the Playwright MCP browser).
 
 ### App shell (#18)
 

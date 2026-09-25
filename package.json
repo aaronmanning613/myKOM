@@ -10,6 +10,7 @@
     "dev": "pnpm -r --parallel --if-present dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter @mykom/e2e test:e2e",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present typecheck",

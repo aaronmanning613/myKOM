@@ -52,11 +52,16 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 | Command            | What it does                                 |
 | ------------------ | -------------------------------------------- |
 | `pnpm test`        | Unit tests (Vitest) in every package         |
+| `pnpm test:e2e`    | End-to-end tests (Playwright), see below     |
 | `pnpm typecheck`   | TypeScript checks in every package           |
 | `pnpm lint`        | ESLint and Prettier checks                   |
 | `pnpm format`      | Format everything with Prettier              |
 | `pnpm build`       | Build every package                          |
 | `pnpm db:generate` | Generate a migration from the Drizzle schema |
 | `pnpm db:migrate`  | Apply pending migrations                     |
+
+### End-to-end tests
+
+`pnpm test:e2e` runs the Playwright tests in `e2e/` against your installed Google Chrome (no browser download). Postgres must be running (`docker compose up -d --wait`); Playwright migrates the database and starts its own API (port 3101) and web app (port 5174), so it doesn't clash with `pnpm dev`.
 
 To stop Postgres, run `docker compose down` (add `-v` to also delete the data).
