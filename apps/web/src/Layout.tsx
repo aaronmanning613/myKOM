@@ -1,10 +1,11 @@
 import { Link, NavLink, Outlet } from 'react-router';
+import { AccountMenu } from './auth/AccountMenu';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 
 const navItems = [
   { to: '/fitness-profile', label: 'Fitness Profile' },
   { to: '/search-area', label: 'Search Area' },
   { to: '/results', label: 'Results' },
-  { to: '/login', label: 'Log in' },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
@@ -14,16 +15,26 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
     : `${base} text-gray-700 hover:bg-gray-100 hover:text-gray-900`;
 }
 
-export function Layout() {
+function Header() {
+  const auth = useAuth();
+
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <header className="border-b border-gray-200">
-        <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <header className="border-b border-gray-200">
+      <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Link to="/" className="text-xl font-bold text-orange-600">
             myKOM
           </Link>
+          {auth.status === 'signed-in' && <AccountMenu me={auth.me} />}
+          {auth.status === 'signed-out' && (
+            <NavLink to="/login" className={navLinkClass}>
+              Log in
+            </NavLink>
+          )}
+        </div>
+        {auth.status === 'signed-in' && (
           <nav aria-label="Main">
-            <ul className="-mx-3 flex flex-wrap gap-1 sm:mx-0">
+            <ul className="-mx-3 flex flex-wrap gap-1">
               {navItems.map((item) => (
                 <li key={item.to}>
                   <NavLink to={item.to} className={navLinkClass}>
@@ -33,11 +44,21 @@ export function Layout() {
               ))}
             </ul>
           </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-6">
-        <Outlet />
-      </main>
-    </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+export function Layout() {
+  return (
+    <AuthProvider>
+      <div className="min-h-screen bg-white text-gray-900">
+        <Header />
+        <main className="mx-auto max-w-3xl px-4 py-6">
+          <Outlet />
+        </main>
+      </div>
+    </AuthProvider>
   );
 }

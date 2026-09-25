@@ -13,6 +13,7 @@ describe('readEnv', () => {
       sessionSecret: DEV_SESSION_SECRET,
       stravaClientId: '',
       stravaClientSecret: '',
+      testMode: false,
     });
   });
 
@@ -33,7 +34,17 @@ describe('readEnv', () => {
       sessionSecret: 's'.repeat(32),
       stravaClientId: '123',
       stravaClientSecret: 'shh',
+      testMode: false,
     });
+  });
+
+  it.each([
+    [{ NODE_ENV: 'test' }, true],
+    [{ E2E: '1' }, true],
+    [{ NODE_ENV: 'development' }, false],
+    [{ NODE_ENV: 'production', E2E: '1', SESSION_SECRET: 's'.repeat(32) }, false],
+  ])('turns test mode on only outside production (%o)', (source, testMode) => {
+    expect(readEnv(source).testMode).toBe(testMode);
   });
 
   it('rejects an invalid port', () => {

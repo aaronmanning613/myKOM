@@ -16,6 +16,11 @@ export type Env = {
   sessionSecret: string;
   stravaClientId: string;
   stravaClientSecret: string;
+  /**
+   * NODE_ENV=test or E2E=1, never in production: registers test-only routes and swaps Strava for
+   * a local stand-in, so end-to-end tests never need real credentials or reach Strava.
+   */
+  testMode: boolean;
 };
 
 /** Loads the repo-root `.env` into `process.env` if present. Existing variables win. */
@@ -42,5 +47,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     sessionSecret,
     stravaClientId: source.STRAVA_CLIENT_ID ?? '',
     stravaClientSecret: source.STRAVA_CLIENT_SECRET ?? '',
+    testMode:
+      source.NODE_ENV !== 'production' && (source.NODE_ENV === 'test' || source.E2E === '1'),
   };
 }

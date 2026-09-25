@@ -68,4 +68,6 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
 `pnpm test:e2e` runs the Playwright tests in `e2e/` against your installed Google Chrome (no browser download). Postgres must be running (`docker compose up -d --wait`); Playwright migrates the database and starts its own API (port 3101) and web app (port 5174), so it doesn't clash with `pnpm dev`.
 
+The e2e servers run in **test mode** (`NODE_ENV=test` or `E2E=1`, ignored when `NODE_ENV=production`): the API adds `POST /api/test/login`, which creates a throwaway Runner and signs the browser in, and swaps Strava for a local stand-in, so the tests never use real Strava credentials. These throwaway Runners stay in your development database.
+
 To stop Postgres, run `docker compose down` (add `-v` to also delete the data).

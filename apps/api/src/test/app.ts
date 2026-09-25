@@ -15,7 +15,10 @@ export function useTestDatabase(): Database {
 }
 
 /** The app wired to the test database, with a mocked `fetch` behind the Strava client. */
-export function buildTestApp(database: Pick<Database, 'db' | 'isReachable'>) {
+export function buildTestApp(
+  database: Pick<Database, 'db' | 'isReachable'>,
+  { testRoutes = false }: { testRoutes?: boolean } = {},
+) {
   const fetch = vi.fn<typeof globalThis.fetch>();
   const strava = createStravaClient({
     clientId: 'test-client-id',
@@ -23,7 +26,7 @@ export function buildTestApp(database: Pick<Database, 'db' | 'isReachable'>) {
     tokenStore: createDbTokenStore(database.db),
     fetch,
   });
-  const app = buildApp({ database, strava, sessionSecret: TEST_SESSION_SECRET });
+  const app = buildApp({ database, strava, sessionSecret: TEST_SESSION_SECRET, testRoutes });
   return { app, fetch };
 }
 

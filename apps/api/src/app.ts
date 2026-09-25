@@ -1,6 +1,7 @@
 import fastifyCookie from '@fastify/cookie';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { authRoutes } from './auth/routes.js';
+import { testRoutes } from './auth/test-routes.js';
 import type { Database } from './db/client.js';
 import type { StravaClient } from './strava/client.js';
 
@@ -10,6 +11,8 @@ export type BuildAppOptions = {
   strava: StravaClient;
   /** Signs the session and OAuth state cookies. */
   sessionSecret: string;
+  /** Registers test-only routes such as `POST /api/test/login`. Never on in production. */
+  testRoutes?: boolean;
 };
 
 export type HealthStatus = {
@@ -17,7 +20,13 @@ export type HealthStatus = {
   db: 'up' | 'down';
 };
 
-export function buildApp({ logger = false, database, strava, sessionSecret }: BuildAppOptions) {
+export function buildApp({
+  logger = false,
+  database,
+  strava,
+  sessionSecret,
+  testRoutes: enableTestRoutes = false,
+}: BuildAppOptions) {
   const app = Fastify({ logger });
   app.register(fastifyCookie, { secret: sessionSecret });
 
@@ -28,6 +37,7 @@ export function buildApp({ logger = false, database, strava, sessionSecret }: Bu
   });
 
   app.register(authRoutes, { db: database.db, strava });
+  if (enableTestRoutes) app.register(testRoutes, { db: database.db });
 
   return app;
 }

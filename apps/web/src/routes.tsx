@@ -1,4 +1,5 @@
 import type { RouteObject } from 'react-router';
+import { RequireAuth } from './auth/RequireAuth';
 import { Layout } from './Layout';
 import { FitnessProfilePage } from './pages/FitnessProfilePage';
 import { HomePage } from './pages/HomePage';
@@ -14,9 +15,14 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
-      { path: 'fitness-profile', element: <FitnessProfilePage /> },
-      { path: 'search-area', element: <SearchAreaPage /> },
-      { path: 'results', element: <ResultsPage /> },
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: 'fitness-profile', element: <FitnessProfilePage /> },
+          { path: 'search-area', element: <SearchAreaPage /> },
+          { path: 'results', element: <ResultsPage /> },
+        ],
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
