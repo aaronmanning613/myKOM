@@ -15,6 +15,13 @@
       "when": 1790371318362,
       "tag": "0001_runners_and_strava_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790376522665,
+      "tag": "0002_benchmarks",
+      "breakpoints": true
     }
   ]
 }

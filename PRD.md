@@ -57,7 +57,7 @@ Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck 
 ### Fitness Profile (#16)
 
 - [x] **P1** In `packages/shared`: the Benchmark distance list (400m, 1/2 mile, 1K, 1 mile, 2 mile, 5K, 10K; defined once so it can change), time parsing and formatting (`ss`, `m:ss`, `h:mm:ss`, rejecting bad input), and pace per km. **Check:** unit tests including edge cases (seconds ≥ 60 in `m:ss`, empty strings, leading zeros).
-- [ ] **P2** A `benchmarks` table (runner FK with cascade delete, distance, seconds, `source` enum `runner | strava`, updated_at; one row per runner per distance) and `GET /api/fitness-profile` / `PUT /api/fitness-profile`, scoped to the signed-in Runner. Everything is `source: runner` for now; the Strava import comes later. **Check:** inject tests, including that one Runner can't read or change another's Benchmarks.
+- [x] **P2** A `benchmarks` table (runner FK with cascade delete, distance, seconds, `source` enum `runner | strava`, updated_at; one row per runner per distance) and `GET /api/fitness-profile` / `PUT /api/fitness-profile`, scoped to the signed-in Runner. Everything is `source: runner` for now; the Strava import comes later. **Check:** inject tests, including that one Runner can't read or change another's Benchmarks.
 - [ ] **P3** The Fitness Profile screen: one row per Benchmark distance with a time input, pace shown, inline validation errors, clear and save. **Check:** a component test covering edit, invalid input and save, and an e2e test that enters Benchmarks, reloads, and sees them persisted.
 
 ### Search Area (#17)

@@ -60,6 +60,8 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 | `pnpm db:generate` | Generate a migration from the Drizzle schema    |
 | `pnpm db:migrate`  | Apply pending migrations                        |
 
+`packages/shared` holds code both apps use. In development, tests and typechecks it is used straight from its TypeScript source; `pnpm build` also compiles it to `dist/`, which the built API loads through the `mykom-dist` export condition (`pnpm --dir apps/api start`).
+
 ### Unit tests
 
 `pnpm test` runs Vitest in every package. The API's tests need Postgres running (`docker compose up -d --wait`): they create and migrate a separate `mykom_test` database (or use `TEST_DATABASE_URL`), so they never touch your development data.

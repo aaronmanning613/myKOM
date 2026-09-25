@@ -1,5 +1,15 @@
 // Drizzle table definitions. Tables are added by the tasks that need them.
-import { bigint, boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { BENCHMARK_SOURCES, type BenchmarkDistanceId } from '@mykom/shared';
+import {
+  bigint,
+  boolean,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -36,7 +46,26 @@ export const stravaTokens = pgTable('strava_tokens', {
   ...timestamps,
 });
 
+export const benchmarkSource = pgEnum('benchmark_source', BENCHMARK_SOURCES);
+
+// The Runner's Fitness Profile: one Benchmark per Runner per distance.
+export const benchmarks = pgTable(
+  'benchmarks',
+  {
+    runnerId: integer('runner_id')
+      .notNull()
+      .references(() => runners.id, { onDelete: 'cascade' }),
+    // A BENCHMARK_DISTANCES id. Plain text, so the list can change without a migration.
+    distance: text('distance').$type<BenchmarkDistanceId>().notNull(),
+    seconds: integer('seconds').notNull(),
+    source: benchmarkSource('source').notNull(),
+    updatedAt: timestamps.updatedAt,
+  },
+  (table) => [primaryKey({ columns: [table.runnerId, table.distance] })],
+);
+
 export type Runner = typeof runners.$inferSelect;
 export type NewRunner = typeof runners.$inferInsert;
 export type StravaToken = typeof stravaTokens.$inferSelect;
 export type NewStravaToken = typeof stravaTokens.$inferInsert;
+export type BenchmarkRow = typeof benchmarks.$inferSelect;

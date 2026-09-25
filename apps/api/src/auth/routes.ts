@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
 import type { StravaClient } from '../strava/client.js';
-import { deleteRunner, findRunner, upsertRunnerFromStrava } from './runners.js';
+import { requireRunner } from './guard.js';
+import { deleteRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
 
 export const STATE_COOKIE = 'mykom_oauth_state';
@@ -73,13 +74,8 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
   });
 
   app.get('/api/me', async (request, reply) => {
-    const runnerId = sessionRunnerId(request);
-    const runner = runnerId === undefined ? undefined : await findRunner(db, runnerId);
-    if (!runner) {
-      // Covers a Runner deleted since the cookie was issued.
-      if (runnerId !== undefined) endSession(request, reply);
-      return reply.code(401).send({ error: 'signed_out' });
-    }
+    const runner = await requireRunner(db, request, reply);
+    if (!runner) return reply;
     const me: Me = { id: runner.id, firstName: runner.firstName, avatarUrl: runner.avatarUrl };
     return me;
   });

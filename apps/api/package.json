@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/server.js",
+    "start": "node --conditions=mykom-dist dist/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
+    "@mykom/shared": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
     "postgres": "^3.4.9"
