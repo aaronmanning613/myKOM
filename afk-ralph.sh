@@ -64,7 +64,8 @@ while ((i <= max_iterations)); do
   claude --permission-mode acceptEdits -p --output-format stream-json --verbose \
     ${budget_args[@]+"${budget_args[@]}"} \
     "@PRD.md @progress.txt $(cat ralph-prompt.md)" 2> "$log.stderr" \
-    | tee "$log" | python3 ralph-stream.py || true
+    | tee "$log" | { python3 ralph-stream.py || cat > /dev/null; } || true
+  # (If the display ever fails, `cat` keeps draining the pipe so the log still gets every event.)
 
   # Parse the stream: cost, is_error, usage-limit flag, reset epoch (0 if unknown),
   # whether paid overage was used, and the final result text.

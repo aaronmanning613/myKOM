@@ -32,22 +32,13 @@ def describe_tool(name, args):
         active = [t.get("content", "") for t in todos if t.get("status") == "in_progress"]
         return f"Todo: {active[0] if active else f'{len(todos)} items'}"
     if name.startswith("mcp__playwright__"):
-        action = name.removeprefix("mcp__playwright__")
+        action = name[len("mcp__playwright__"):]
         detail = args.get("url") or args.get("element") or args.get("text") or ""
         return f"🌐 {action} {detail}".strip()
     return f"{name} {json.dumps(args)}"
 
 
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        event = json.loads(line)
-    except json.JSONDecodeError:
-        print(DIM + short(line) + RESET, flush=True)
-        continue
-
+def show(event):
     kind = event.get("type")
     if kind == "system" and event.get("subtype") == "init":
         print(f"{DIM}model {event.get('model', '?')} · session {event.get('session_id', '?')[:8]}{RESET}", flush=True)
@@ -84,3 +75,18 @@ for line in sys.stdin:
         minutes = (event.get("duration_ms") or 0) / 60000
         cost = event.get("total_cost_usd") or 0
         print(f"{BOLD}{status}{RESET} in {minutes:.1f} min · ${cost:.2f} · {event.get('num_turns', '?')} turns", flush=True)
+
+
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        print(DIM + short(line) + RESET, flush=True)
+        continue
+    try:
+        show(event)
+    except Exception as exc:  # never let a display bug stop the feed (or the loop)
+        print(f"{DIM}[ralph-stream: couldn't display a {event.get('type', '?')} event: {exc}]{RESET}", flush=True)

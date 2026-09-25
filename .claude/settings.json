@@ -2,6 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(pnpm:*)",
+      "Bash(NODE_ENV=test pnpm:*)",
+      "Bash(E2E=1 pnpm:*)",
       "Bash(corepack:*)",
       "Bash(node:*)",
       "Bash(npx drizzle-kit:*)",
