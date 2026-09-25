@@ -3,9 +3,13 @@ import { fileURLToPath } from 'node:url';
 
 const rootEnvPath = fileURLToPath(new URL('../../../.env', import.meta.url));
 
+/** Matches the Postgres service in docker-compose.yml. */
+export const DEFAULT_DATABASE_URL = 'postgres://mykom:mykom@localhost:5433/mykom';
+
 export type Env = {
   host: string;
   port: number;
+  databaseUrl: string;
 };
 
 /** Loads the repo-root `.env` into `process.env` if present. Existing variables win. */
@@ -21,5 +25,6 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
   return {
     host: source.API_HOST ?? '127.0.0.1',
     port,
+    databaseUrl: source.DATABASE_URL || DEFAULT_DATABASE_URL,
   };
 }
