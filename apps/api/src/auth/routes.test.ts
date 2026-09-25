@@ -2,7 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
 import { runners, stravaTokens } from '../db/schema.js';
-import { STRAVA_AUTHORIZE_URL } from '../strava/client.js';
+import { STRAVA_AUTHORIZE_URL, STRAVA_DEAUTHORIZE_URL } from '../strava/client.js';
 import { buildTestApp, randomAthleteId, useTestDatabase } from '../test/app.js';
 import { STATE_COOKIE } from './routes.js';
 import { SESSION_COOKIE } from './session.js';
@@ -248,5 +248,72 @@ describe('POST /api/auth/logout', () => {
     const cleared = res.cookies.find((c) => c.name === SESSION_COOKIE);
     expect(cleared).toMatchObject({ value: '', path: '/' });
     expect(cleared!.expires!.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe('POST /api/auth/disconnect', () => {
+  async function disconnect(session?: string) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/auth/disconnect',
+      cookies: session ? { [SESSION_COOKIE]: session } : {},
+    });
+  }
+
+  /** Signs a Runner in and returns their id and session cookie value. */
+  async function signInRunner() {
+    const athleteId = randomAthleteId();
+    const { session } = await signIn(athleteId);
+    const [runner] = await db.select().from(runners).where(eq(runners.stravaAthleteId, athleteId));
+    return { runnerId: runner!.id, session: session!.value };
+  }
+
+  async function runnerData(runnerId: number) {
+    return {
+      runners: await db.select().from(runners).where(eq(runners.id, runnerId)),
+      tokens: await db.select().from(stravaTokens).where(eq(stravaTokens.runnerId, runnerId)),
+    };
+  }
+
+  it('returns 401 when signed out', async () => {
+    const res = await disconnect();
+    expect(res.statusCode).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("deauthorizes on Strava, deletes the Runner's data and clears the session", async () => {
+    const { runnerId, session } = await signInRunner();
+    const before = await runnerData(runnerId);
+    expect(before.runners).toHaveLength(1);
+    expect(before.tokens).toHaveLength(1);
+    fetch.mockResolvedValueOnce(Response.json({ access_token: 'access-1' }));
+
+    const res = await disconnect(session);
+
+    expect(res.statusCode).toBe(204);
+    const [url, init] = fetch.mock.calls[1]!;
+    expect(url).toBe(STRAVA_DEAUTHORIZE_URL);
+    expect((init!.body as URLSearchParams).get('access_token')).toBe('access-1');
+
+    expect(await runnerData(runnerId)).toEqual({ runners: [], tokens: [] });
+    expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toMatchObject({ value: '' });
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      cookies: { [SESSION_COOKIE]: session },
+    });
+    expect(me.statusCode).toBe(401);
+  });
+
+  it("still deletes the Runner's data when Strava's deauthorize fails", async () => {
+    const { runnerId, session } = await signInRunner();
+    fetch.mockResolvedValueOnce(new Response('{"message":"Authorization Error"}', { status: 401 }));
+
+    const res = await disconnect(session);
+
+    expect(res.statusCode).toBe(204);
+    expect(await runnerData(runnerId)).toEqual({ runners: [], tokens: [] });
+    expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toMatchObject({ value: '' });
   });
 });

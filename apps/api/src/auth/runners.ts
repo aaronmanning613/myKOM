@@ -43,3 +43,8 @@ export async function findRunner(db: Database['db'], id: number): Promise<Runner
   const [runner] = await db.select().from(runners).where(eq(runners.id, id)).limit(1);
   return runner;
 }
+
+/** Deletes the Runner and, through cascading foreign keys, everything myKOM holds about them. */
+export async function deleteRunner(db: Database['db'], id: number): Promise<void> {
+  await db.delete(runners).where(eq(runners.id, id));
+}

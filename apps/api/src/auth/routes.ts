@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
 import type { StravaClient } from '../strava/client.js';
-import { findRunner, upsertRunnerFromStrava } from './runners.js';
+import { deleteRunner, findRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
 
 export const STATE_COOKIE = 'mykom_oauth_state';
@@ -85,6 +85,24 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
+    endSession(request, reply);
+    return reply.code(204).send();
+  });
+
+  // Strava's API Policy requires deleting a Runner's data when they disconnect.
+  app.post('/api/auth/disconnect', async (request, reply) => {
+    const runnerId = sessionRunnerId(request);
+    if (runnerId === undefined) return reply.code(401).send({ error: 'signed_out' });
+
+    try {
+      await strava.deauthorize(await strava.getValidAccessToken(runnerId));
+    } catch (err) {
+      // The Runner asked for their data to go, so delete it even when Strava can't be reached
+      // or the token was already revoked; they can still revoke access in Strava's settings.
+      // TODO(decision): whether a failed deauthorize should block deletion so they can retry.
+      request.log.warn(err, 'Strava deauthorize failed during disconnect');
+    }
+    await deleteRunner(db, runnerId);
     endSession(request, reply);
     return reply.code(204).send();
   });
