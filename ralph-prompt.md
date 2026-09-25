@@ -1,7 +1,7 @@
 You are one iteration of a Ralph loop building the myKOM foundation.
 
 1. Read PRD.md, progress.txt and CONTEXT.md. Use the CONTEXT.md glossary terms in code and UI.
-2. Pick the first unchecked task in PRD.md. Implement ONLY that task.
+2. Run `git status`. If there are uncommitted changes, a previous iteration was interrupted (e.g. by a usage limit) partway through the first unchecked task: review those changes, keep what's sound, and finish that task. Don't start over or discard them. Otherwise, pick the first unchecked task in PRD.md. Either way, work on ONLY that task.
 3. Run the task's Check, then `pnpm typecheck && pnpm lint && pnpm test` (once those scripts exist), and `pnpm test:e2e` once task E1 is done. If the task touches UI, also follow PRD.md's "UI verification" convention: run the app and click through it with the Playwright MCP browser tools. Fix every failure before moving on.
 4. Tick the task in PRD.md (`- [ ]` → `- [x]`) and append an entry to progress.txt in the format its header describes.
 5. Commit everything with `git add -A && git commit`, message `<task id>: <summary>`, ending with a blank line then:
