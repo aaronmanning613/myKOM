@@ -4,6 +4,7 @@ import { authRoutes } from './auth/routes.js';
 import { testRoutes } from './auth/test-routes.js';
 import type { Database } from './db/client.js';
 import { fitnessProfileRoutes } from './fitness-profile/routes.js';
+import { searchAreaRoutes } from './search-area/routes.js';
 import type { StravaClient } from './strava/client.js';
 
 export type BuildAppOptions = {
@@ -39,6 +40,7 @@ export function buildApp({
 
   app.register(authRoutes, { db: database.db, strava });
   app.register(fitnessProfileRoutes, { db: database.db });
+  app.register(searchAreaRoutes, { db: database.db });
   if (enableTestRoutes) app.register(testRoutes, { db: database.db });
 
   return app;

@@ -1,8 +1,9 @@
 // Drizzle table definitions. Tables are added by the tasks that need them.
-import { BENCHMARK_SOURCES, type BenchmarkDistanceId } from '@mykom/shared';
+import { BENCHMARK_SOURCES, type BenchmarkDistanceId, type SearchRadiusKm } from '@mykom/shared';
 import {
   bigint,
   boolean,
+  doublePrecision,
   integer,
   pgEnum,
   pgTable,
@@ -64,8 +65,22 @@ export const benchmarks = pgTable(
   (table) => [primaryKey({ columns: [table.runnerId, table.distance] })],
 );
 
+// The Runner's Search Area: one per Runner.
+export const searchAreas = pgTable('search_areas', {
+  runnerId: integer('runner_id')
+    .primaryKey()
+    .references(() => runners.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  lat: doublePrecision('lat').notNull(),
+  lng: doublePrecision('lng').notNull(),
+  // A SEARCH_RADII_KM value. Plain integer, so the set can change without a migration.
+  radiusKm: integer('radius_km').$type<SearchRadiusKm>().notNull(),
+  ...timestamps,
+});
+
 export type Runner = typeof runners.$inferSelect;
 export type NewRunner = typeof runners.$inferInsert;
 export type StravaToken = typeof stravaTokens.$inferSelect;
 export type NewStravaToken = typeof stravaTokens.$inferInsert;
 export type BenchmarkRow = typeof benchmarks.$inferSelect;
+export type SearchAreaRow = typeof searchAreas.$inferSelect;

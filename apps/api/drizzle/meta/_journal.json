@@ -22,6 +22,13 @@
       "when": 1790376522665,
       "tag": "0002_benchmarks",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790376901966,
+      "tag": "0003_search_areas",
+      "breakpoints": true
     }
   ]
 }
