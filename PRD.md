@@ -35,7 +35,7 @@ Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck 
 
 ### Scaffold (#14)
 
-- [ ] **F1** Root workspace: `.nvmrc` (`22`), root `package.json` (`packageManager` pnpm via corepack, `engines.node` `>=22`), `pnpm-workspace.yaml`, `tsconfig.base.json`, ESLint flat config, Prettier config and ignore file, and root scripts `dev`, `build`, `test`, `lint`, `typecheck`, `db:generate`, `db:migrate` (scripts may be stubs until their packages exist). **Check:** `pnpm install && pnpm lint` passes.
+- [x] **F1** Root workspace: `.nvmrc` (`22`), root `package.json` (`packageManager` pnpm via corepack, `engines.node` `>=22`), `pnpm-workspace.yaml`, `tsconfig.base.json`, ESLint flat config, Prettier config and ignore file, and root scripts `dev`, `build`, `test`, `lint`, `typecheck`, `db:generate`, `db:migrate` (scripts may be stubs until their packages exist). **Check:** `pnpm install && pnpm lint` passes.
 - [ ] **F2** `apps/api`: Fastify app built by a factory function (so tests can use `app.inject`), env loading from the repo-root `.env`, and `GET /api/health` returning `{ ok: true }`. **Check:** a Vitest test passes, and `curl localhost:<api port>/api/health` works against the running server.
 - [ ] **F3** `docker-compose.yml` (Postgres 16, host port 5433, named volume), Drizzle config, a DB client module, an initial migration, and `.env.example`. `/api/health` now also reports whether the DB is reachable. **Check:** `docker compose up -d && pnpm db:migrate` succeeds, and health reports the DB as up.
 - [ ] **F4** `apps/web`: Vite + React + TypeScript + Tailwind, Vitest + Testing Library, and the `/api` proxy. The home page fetches and shows the health status. **Check:** the web test passes and the web app builds.

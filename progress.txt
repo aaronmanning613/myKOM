@@ -7,3 +7,8 @@
 # - Verified: commands run and their result
 # - Notes: TODO(decision) items, blockers, anything the next iteration should know
 #
+
+## F1 - Root workspace (2026-09-25)
+- Done: .nvmrc (22), root package.json (packageManager pnpm@12.6.0, engines node >=22), pnpm-workspace.yaml (apps/*, packages/*), tsconfig.base.json (strict, Bundler resolution, noEmit), ESLint flat config (eslint.config.js: @eslint/js + typescript-eslint + eslint-config-prettier), .prettierrc.json + .prettierignore. Root scripts dev/build/test/typecheck/db:generate/db:migrate fan out with `pnpm -r --if-present`, so they are no-ops until packages define them. `lint` = `eslint . && prettier --check .`; `format` writes.
+- Verified: `pnpm install && pnpm lint` passes; typecheck/test/db:*/build run clean (no packages yet).
+- Notes: TypeScript pinned to ~6.0 because typescript-eslint 8.70 only supports TS <6.1 (TS 7 is out but unsupported). Prettier ignores the Ralph docs (PRD.md, progress.txt, CONTEXT.md, ralph-prompt.md) and .agents/.claude so tooling doesn't reformat them. README.md got a Prettier blank-line fix.
