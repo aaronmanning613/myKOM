@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildApp } from './app.js';
+import { buildTestApp, useTestDatabase } from './test/app.js';
 
 describe('GET /api/health', () => {
+  const database = useTestDatabase();
+
   it('reports ok when the database is reachable', async () => {
-    const app = buildApp({ isDatabaseReachable: async () => true });
+    const { app } = buildTestApp(database);
     const res = await app.inject({ method: 'GET', url: '/api/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true, db: 'up' });
@@ -11,7 +13,7 @@ describe('GET /api/health', () => {
   });
 
   it('reports the database as down with a 503', async () => {
-    const app = buildApp({ isDatabaseReachable: async () => false });
+    const { app } = buildTestApp({ ...database, isReachable: async () => false });
     const res = await app.inject({ method: 'GET', url: '/api/health' });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ ok: false, db: 'down' });

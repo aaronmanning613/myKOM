@@ -24,7 +24,7 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
    cp .env.example .env
    ```
 
-   The other variables have working defaults for local development.
+   The other variables have working defaults for local development. To sign in with Strava, open the web app at `http://localhost:5173` (not `127.0.0.1`), since that's the callback domain Strava accepts.
 
 3. Start Postgres (Postgres 16 on host port 5433, data kept in a named volume):
 
@@ -49,16 +49,20 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
 ### Other commands
 
-| Command            | What it does                                 |
-| ------------------ | -------------------------------------------- |
-| `pnpm test`        | Unit tests (Vitest) in every package         |
-| `pnpm test:e2e`    | End-to-end tests (Playwright), see below     |
-| `pnpm typecheck`   | TypeScript checks in every package           |
-| `pnpm lint`        | ESLint and Prettier checks                   |
-| `pnpm format`      | Format everything with Prettier              |
-| `pnpm build`       | Build every package                          |
-| `pnpm db:generate` | Generate a migration from the Drizzle schema |
-| `pnpm db:migrate`  | Apply pending migrations                     |
+| Command            | What it does                                    |
+| ------------------ | ----------------------------------------------- |
+| `pnpm test`        | Unit tests (Vitest) in every package, see below |
+| `pnpm test:e2e`    | End-to-end tests (Playwright), see below        |
+| `pnpm typecheck`   | TypeScript checks in every package              |
+| `pnpm lint`        | ESLint and Prettier checks                      |
+| `pnpm format`      | Format everything with Prettier                 |
+| `pnpm build`       | Build every package                             |
+| `pnpm db:generate` | Generate a migration from the Drizzle schema    |
+| `pnpm db:migrate`  | Apply pending migrations                        |
+
+### Unit tests
+
+`pnpm test` runs Vitest in every package. The API's tests need Postgres running (`docker compose up -d --wait`): they create and migrate a separate `mykom_test` database (or use `TEST_DATABASE_URL`), so they never touch your development data.
 
 ### End-to-end tests
 
