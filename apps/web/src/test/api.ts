@@ -18,13 +18,14 @@ export function json(body: unknown, status = 200): Response {
 }
 
 /**
- * Unlisted routes respond 404. Unless overridden, the health route answers OK and
- * the Fitness Profile is empty.
+ * Unlisted routes respond 404. Unless overridden, the health route answers OK, the
+ * Fitness Profile is empty and there's no Search Area.
  */
 export function stubApi(routes: Record<string, Handler>) {
   const all: Record<string, Handler> = {
     'GET /api/health': () => json({ ok: true, db: 'up' }),
     'GET /api/fitness-profile': () => json({ benchmarks: [] }),
+    'GET /api/search-area': () => json({ searchArea: null }),
     ...routes,
   };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
