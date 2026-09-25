@@ -22,7 +22,9 @@
       "Bash(mkdir:*)",
       "Bash(sleep:*)",
       "Bash(kill:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "mcp__playwright",
+      "Bash(npx playwright:*)"
     ],
     "deny": [
       "Bash(git push:*)",
@@ -32,5 +34,8 @@
       "Bash(rm -rf:*)",
       "Read(./.env)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
 }
