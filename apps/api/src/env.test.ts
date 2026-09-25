@@ -13,6 +13,7 @@ describe('readEnv', () => {
       sessionSecret: DEV_SESSION_SECRET,
       stravaClientId: '',
       stravaClientSecret: '',
+      nominatimUserAgent: undefined,
       testMode: false,
     });
   });
@@ -26,6 +27,7 @@ describe('readEnv', () => {
         SESSION_SECRET: 's'.repeat(32),
         STRAVA_CLIENT_ID: '123',
         STRAVA_CLIENT_SECRET: 'shh',
+        NOMINATIM_USER_AGENT: 'myKOM/0.1 (runner@example.com)',
       }),
     ).toEqual({
       host: '0.0.0.0',
@@ -34,8 +36,13 @@ describe('readEnv', () => {
       sessionSecret: 's'.repeat(32),
       stravaClientId: '123',
       stravaClientSecret: 'shh',
+      nominatimUserAgent: 'myKOM/0.1 (runner@example.com)',
       testMode: false,
     });
+  });
+
+  it('treats a blank NOMINATIM_USER_AGENT as unset', () => {
+    expect(readEnv({ NOMINATIM_USER_AGENT: '  ' }).nominatimUserAgent).toBeUndefined();
   });
 
   it.each([

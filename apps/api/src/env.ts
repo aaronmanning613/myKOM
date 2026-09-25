@@ -16,6 +16,8 @@ export type Env = {
   sessionSecret: string;
   stravaClientId: string;
   stravaClientSecret: string;
+  /** NOMINATIM_USER_AGENT: names the app and a contact. Place search is off while it's unset. */
+  nominatimUserAgent: string | undefined;
   /**
    * NODE_ENV=test or E2E=1, never in production: registers test-only routes and swaps Strava for
    * a local stand-in, so end-to-end tests never need real credentials or reach Strava.
@@ -47,6 +49,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     sessionSecret,
     stravaClientId: source.STRAVA_CLIENT_ID ?? '',
     stravaClientSecret: source.STRAVA_CLIENT_SECRET ?? '',
+    nominatimUserAgent: source.NOMINATIM_USER_AGENT?.trim() || undefined,
     testMode:
       source.NODE_ENV !== 'production' && (source.NODE_ENV === 'test' || source.E2E === '1'),
   };

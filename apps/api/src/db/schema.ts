@@ -1,10 +1,16 @@
 // Drizzle table definitions. Tables are added by the tasks that need them.
-import { BENCHMARK_SOURCES, type BenchmarkDistanceId, type SearchRadiusKm } from '@mykom/shared';
+import {
+  BENCHMARK_SOURCES,
+  type BenchmarkDistanceId,
+  type GeocodeResult,
+  type SearchRadiusKm,
+} from '@mykom/shared';
 import {
   bigint,
   boolean,
   doublePrecision,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -76,6 +82,13 @@ export const searchAreas = pgTable('search_areas', {
   // A SEARCH_RADII_KM value. Plain integer, so the set can change without a migration.
   radiusKm: integer('radius_km').$type<SearchRadiusKm>().notNull(),
   ...timestamps,
+});
+
+// Nominatim results by normalised query, so repeat searches don't call Nominatim again.
+export const geocodeCache = pgTable('geocode_cache', {
+  query: text('query').primaryKey(),
+  results: jsonb('results').$type<GeocodeResult[]>().notNull(),
+  createdAt: timestamps.createdAt,
 });
 
 export type Runner = typeof runners.$inferSelect;

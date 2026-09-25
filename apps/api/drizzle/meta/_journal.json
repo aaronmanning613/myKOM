@@ -29,6 +29,13 @@
       "when": 1790376901966,
       "tag": "0003_search_areas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790377155970,
+      "tag": "0004_geocode_cache",
+      "breakpoints": true
     }
   ]
 }

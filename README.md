@@ -24,6 +24,8 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
    cp .env.example .env
    ```
 
+   For place and postcode search, also set `NOMINATIM_USER_AGENT` to something that names the app and gives your contact, e.g. `myKOM/0.1 (you@example.com)`: [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/) requires it. Without it, place search replies 503. The API calls Nominatim at most once a second and caches every search in the `geocode_cache` table.
+
    The other variables have working defaults for local development. To sign in with Strava, open the web app at `http://localhost:5173` (not `127.0.0.1`), since that's the callback domain Strava accepts.
 
 3. Start Postgres (Postgres 16 on host port 5433, data kept in a named volume):
