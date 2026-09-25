@@ -4,6 +4,9 @@ import type { BenchmarkDistanceId } from './benchmarks.js';
 export const BENCHMARK_SOURCES = ['runner', 'strava'] as const;
 export type BenchmarkSource = (typeof BENCHMARK_SOURCES)[number];
 
+/** A Benchmark longer than this is a typo, not a run. */
+export const MAX_BENCHMARK_SECONDS = 24 * 60 * 60;
+
 export type Benchmark = {
   distance: BenchmarkDistanceId;
   seconds: number;

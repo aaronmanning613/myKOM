@@ -2,7 +2,7 @@
 import { vi } from 'vitest';
 import type { Me } from '../auth/AuthContext';
 
-type Handler = () => Response | Promise<Response>;
+type Handler = (init?: RequestInit) => Response | Promise<Response>;
 
 export const testRunner: Me = {
   id: 1,
@@ -17,15 +17,19 @@ export function json(body: unknown, status = 200): Response {
   });
 }
 
-/** Unlisted routes respond 404. The health route answers OK unless overridden. */
+/**
+ * Unlisted routes respond 404. Unless overridden, the health route answers OK and
+ * the Fitness Profile is empty.
+ */
 export function stubApi(routes: Record<string, Handler>) {
   const all: Record<string, Handler> = {
     'GET /api/health': () => json({ ok: true, db: 'up' }),
+    'GET /api/fitness-profile': () => json({ benchmarks: [] }),
     ...routes,
   };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const handler = all[`${init?.method ?? 'GET'} ${String(input)}`];
-    return handler ? handler() : json({ error: 'not_found' }, 404);
+    return handler ? handler(init) : json({ error: 'not_found' }, 404);
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;

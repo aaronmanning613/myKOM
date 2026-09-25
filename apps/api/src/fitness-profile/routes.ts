@@ -1,4 +1,9 @@
-import { BENCHMARK_DISTANCES, type FitnessProfile, type FitnessProfileUpdate } from '@mykom/shared';
+import {
+  BENCHMARK_DISTANCES,
+  MAX_BENCHMARK_SECONDS,
+  type FitnessProfile,
+  type FitnessProfileUpdate,
+} from '@mykom/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import { requireRunner } from '../auth/guard.js';
 import type { Database } from '../db/client.js';
@@ -7,9 +12,6 @@ import { loadFitnessProfile, saveFitnessProfile } from './store.js';
 export type FitnessProfileRoutesOptions = {
   db: Database['db'];
 };
-
-/** A Benchmark longer than this is a typo, not a run. */
-export const MAX_BENCHMARK_SECONDS = 24 * 60 * 60;
 
 const updateSchema = {
   type: 'object',
