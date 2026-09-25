@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present typecheck",
     "db:generate": "pnpm -r --if-present db:generate",
-    "db:migrate": "pnpm -r --if-present db:migrate"
+    "db:migrate": "pnpm -r --if-present db:migrate",
+    "geolite2:update": "node scripts/update-geolite2.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

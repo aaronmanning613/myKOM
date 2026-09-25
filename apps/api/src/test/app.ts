@@ -1,10 +1,11 @@
 // Helpers for tests that build the app against the test database (see global-setup.ts).
 import { afterAll, inject, vi } from 'vitest';
-import { buildApp } from '../app.js';
+import { buildApp, type BuildAppOptions } from '../app.js';
 import { createDatabase, type Database } from '../db/client.js';
 import { createDbGeocodeCache } from '../geocode/cache.js';
 import { createNominatimClient } from '../geocode/nominatim.js';
 import { createThrottle } from '../geocode/throttle.js';
+import type { IpLocator } from '../locate-ip/locator.js';
 import { createStravaClient } from '../strava/client.js';
 import { createDbTokenStore } from '../strava/token-store.js';
 
@@ -26,10 +27,15 @@ export function buildTestApp(
   {
     testRoutes = false,
     nominatim: withNominatim = true,
+    ipLocator,
+    trustProxy,
   }: {
     testRoutes?: boolean;
     /** false builds the app as if NOMINATIM_USER_AGENT were unset. */
     nominatim?: boolean;
+    /** Leave out to build the app as if the GeoLite2 City database were missing. */
+    ipLocator?: IpLocator;
+    trustProxy?: BuildAppOptions['trustProxy'];
   } = {},
 ) {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -51,6 +57,8 @@ export function buildTestApp(
     database,
     strava,
     nominatim: withNominatim ? nominatim : undefined,
+    ipLocator,
+    trustProxy,
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,
   });

@@ -1,8 +1,17 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DATABASE_URL, DEV_SESSION_SECRET, loadRootEnvFile, readEnv } from './env.js';
+import {
+  DEFAULT_DATABASE_URL,
+  DEFAULT_GEOLITE2_CITY_DB,
+  DEV_SESSION_SECRET,
+  loadRootEnvFile,
+  readEnv,
+} from './env.js';
+
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 
 describe('readEnv', () => {
   it('has development defaults', () => {
@@ -14,6 +23,8 @@ describe('readEnv', () => {
       stravaClientId: '',
       stravaClientSecret: '',
       nominatimUserAgent: undefined,
+      geolite2CityDbPath: join(repoRoot, DEFAULT_GEOLITE2_CITY_DB),
+      trustProxy: false,
       testMode: false,
     });
   });
@@ -28,6 +39,8 @@ describe('readEnv', () => {
         STRAVA_CLIENT_ID: '123',
         STRAVA_CLIENT_SECRET: 'shh',
         NOMINATIM_USER_AGENT: 'myKOM/0.1 (runner@example.com)',
+        GEOLITE2_CITY_DB: '/var/lib/geoip/GeoLite2-City.mmdb',
+        TRUST_PROXY: 'true',
       }),
     ).toEqual({
       host: '0.0.0.0',
@@ -37,8 +50,26 @@ describe('readEnv', () => {
       stravaClientId: '123',
       stravaClientSecret: 'shh',
       nominatimUserAgent: 'myKOM/0.1 (runner@example.com)',
+      geolite2CityDbPath: '/var/lib/geoip/GeoLite2-City.mmdb',
+      trustProxy: true,
       testMode: false,
     });
+  });
+
+  it('takes a relative GEOLITE2_CITY_DB from the repo root', () => {
+    expect(readEnv({ GEOLITE2_CITY_DB: 'geo/City.mmdb' }).geolite2CityDbPath).toBe(
+      join(repoRoot, 'geo/City.mmdb'),
+    );
+  });
+
+  it.each([
+    ['', false],
+    ['false', false],
+    ['TRUE', true],
+    ['10.0.0.1', ['10.0.0.1']],
+    [' 10.0.0.0/8 , ::1 ', ['10.0.0.0/8', '::1']],
+  ])('reads TRUST_PROXY %j', (value, trustProxy) => {
+    expect(readEnv({ TRUST_PROXY: value }).trustProxy).toEqual(trustProxy);
   });
 
   it('treats a blank NOMINATIM_USER_AGENT as unset', () => {

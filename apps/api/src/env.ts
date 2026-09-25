@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const rootEnvPath = fileURLToPath(new URL('../../../.env', import.meta.url));
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const rootEnvPath = resolve(repoRoot, '.env');
+
+/** Where `pnpm geolite2:update` puts the GeoLite2 City database unless GEOLITE2_CITY_DB says otherwise. */
+export const DEFAULT_GEOLITE2_CITY_DB = 'data/geolite2/GeoLite2-City.mmdb';
 
 /** Matches the Postgres service in docker-compose.yml. */
 export const DEFAULT_DATABASE_URL = 'postgres://mykom:mykom@localhost:5433/mykom';
@@ -18,6 +23,13 @@ export type Env = {
   stravaClientSecret: string;
   /** NOMINATIM_USER_AGENT: names the app and a contact. Place search is off while it's unset. */
   nominatimUserAgent: string | undefined;
+  /** GEOLITE2_CITY_DB, absolute (relative values are taken from the repo root). */
+  geolite2CityDbPath: string;
+  /**
+   * TRUST_PROXY, for Fastify's `trustProxy`: `true` (trust every proxy) or comma-separated proxy
+   * addresses/CIDRs. Off by default, so `request.ip` is the socket address.
+   */
+  trustProxy: boolean | string[];
   /**
    * NODE_ENV=test or E2E=1, never in production: registers test-only routes and swaps Strava for
    * a local stand-in, so end-to-end tests never need real credentials or reach Strava.
@@ -50,7 +62,23 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     stravaClientId: source.STRAVA_CLIENT_ID ?? '',
     stravaClientSecret: source.STRAVA_CLIENT_SECRET ?? '',
     nominatimUserAgent: source.NOMINATIM_USER_AGENT?.trim() || undefined,
+    geolite2CityDbPath: resolve(
+      repoRoot,
+      source.GEOLITE2_CITY_DB?.trim() || DEFAULT_GEOLITE2_CITY_DB,
+    ),
+    trustProxy: parseTrustProxy(source.TRUST_PROXY),
     testMode:
       source.NODE_ENV !== 'production' && (source.NODE_ENV === 'test' || source.E2E === '1'),
   };
+}
+
+function parseTrustProxy(value: string | undefined): Env['trustProxy'] {
+  const trimmed = value?.trim().toLowerCase() ?? '';
+  if (trimmed === '' || trimmed === 'false') return false;
+  if (trimmed === 'true') return true;
+  // Fastify ignores hop counts (it can't check the nearest peer), so they aren't offered here.
+  return trimmed
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean);
 }

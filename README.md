@@ -26,6 +26,8 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
    For place and postcode search, also set `NOMINATIM_USER_AGENT` to something that names the app and gives your contact, e.g. `myKOM/0.1 (you@example.com)`: [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/) requires it. Without it, place search replies 503. The API calls Nominatim at most once a second and caches every search in the `geocode_cache` table.
 
+   For the IP-location fallback behind "Use my location" (optional), see [IP location](#ip-location) below.
+
    The other variables have working defaults for local development. To sign in with Strava, open the web app at `http://localhost:5173` (not `127.0.0.1`), since that's the callback domain Strava accepts.
 
 3. Start Postgres (Postgres 16 on host port 5433, data kept in a named volume):
@@ -51,18 +53,35 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
 ### Other commands
 
-| Command            | What it does                                    |
-| ------------------ | ----------------------------------------------- |
-| `pnpm test`        | Unit tests (Vitest) in every package, see below |
-| `pnpm test:e2e`    | End-to-end tests (Playwright), see below        |
-| `pnpm typecheck`   | TypeScript checks in every package              |
-| `pnpm lint`        | ESLint and Prettier checks                      |
-| `pnpm format`      | Format everything with Prettier                 |
-| `pnpm build`       | Build every package                             |
-| `pnpm db:generate` | Generate a migration from the Drizzle schema    |
-| `pnpm db:migrate`  | Apply pending migrations                        |
+| Command                | What it does                                    |
+| ---------------------- | ----------------------------------------------- |
+| `pnpm test`            | Unit tests (Vitest) in every package, see below |
+| `pnpm test:e2e`        | End-to-end tests (Playwright), see below        |
+| `pnpm typecheck`       | TypeScript checks in every package              |
+| `pnpm lint`            | ESLint and Prettier checks                      |
+| `pnpm format`          | Format everything with Prettier                 |
+| `pnpm build`           | Build every package                             |
+| `pnpm db:generate`     | Generate a migration from the Drizzle schema    |
+| `pnpm db:migrate`      | Apply pending migrations                        |
+| `pnpm geolite2:update` | Download the GeoLite2 City database, see below  |
 
 `packages/shared` holds code both apps use. In development, tests and typechecks it is used straight from its TypeScript source; `pnpm build` also compiles it to `dist/`, which the built API loads through the `mykom-dist` export condition (`pnpm --dir apps/api start`).
+
+### IP location
+
+When the browser can't give the Runner's location, the Search Area screen falls back to `GET /api/locate-ip`, which looks up the client's IP address in MaxMind's free GeoLite2 City database. The database isn't in the repo; without it the API still starts and the lookup replies `{ "available": false, "reason": "no_database" }`. To install it:
+
+1. Sign up for a free MaxMind account at https://www.maxmind.com/en/geolite2/signup and generate a license key.
+2. Set `MAXMIND_LICENSE_KEY` in `.env`. The database goes to `data/geolite2/GeoLite2-City.mmdb` (git-ignored) unless you set `GEOLITE2_CITY_DB`.
+3. Download it, then restart the API (it opens the file at startup):
+
+   ```sh
+   pnpm geolite2:update
+   ```
+
+MaxMind updates GeoLite2 twice a week and its licence asks you to keep it current, so re-run the script regularly (e.g. weekly from cron).
+
+The lookup uses the address the request came from. Locally that's a loopback address, which isn't in the database, so the lookup reports `not_found`. When the API runs behind a reverse proxy, set `TRUST_PROXY` (comma-separated proxy addresses/CIDRs, or `true` to trust any) so the real client address is taken from `X-Forwarded-For`; leave it empty otherwise, or clients could spoof their address.
 
 ### Unit tests
 
