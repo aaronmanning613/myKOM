@@ -44,7 +44,7 @@ Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck 
 
 ### App shell (#18)
 
-- [ ] **S1** React Router layout with a header and nav, and routes `/login`, `/fitness-profile`, `/search-area`, and `/results` (a "coming soon" placeholder: the results list waits on the ranking decisions). Responsive down to phone width, plain Tailwind, no component library. **Check:** a unit test renders each route, and an e2e test navigates between every route via the nav at desktop and phone widths.
+- [x] **S1** React Router layout with a header and nav, and routes `/login`, `/fitness-profile`, `/search-area`, and `/results` (a "coming soon" placeholder: the results list waits on the ranking decisions). Responsive down to phone width, plain Tailwind, no component library. **Check:** a unit test renders each route, and an e2e test navigates between every route via the nav at desktop and phone widths.
 
 ### Strava OAuth (#15)
 
