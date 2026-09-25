@@ -10,7 +10,10 @@
 #   --resume-after-limit   If an iteration hits the plan's usage limit, wait for the limit to
 #                          reset and carry on instead of stopping. Waiting still respects
 #                          --minutes/--hours; without a time limit it waits at most 12 hours.
-# Per-iteration output is saved under ralph-logs/.
+# Progress streams live to the terminal (via ralph-stream.py): Claude's messages, each tool call,
+# tool errors, plan usage, and a summary per iteration. The raw event stream for each iteration
+# is saved under ralph-logs/.
+# Safety: if an iteration reports paid overage (extra usage) in use, the loop stops.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -55,32 +58,51 @@ while ((i <= max_iterations)); do
     budget_args=(--max-budget-usd "$remaining")
   fi
 
-  log="ralph-logs/$(date '+%Y%m%d-%H%M%S')-iter$i.json"
+  log="ralph-logs/$(date '+%Y%m%d-%H%M%S')-iter$i.jsonl"
   echo "=== Ralph iteration $i ($(date '+%H:%M:%S'), spent so far \$$spent) ==="
-  claude --permission-mode acceptEdits -p --output-format json ${budget_args[@]+"${budget_args[@]}"} \
-    "@PRD.md @progress.txt $(cat ralph-prompt.md)" > "$log" 2> "$log.stderr" || true
+  # Stream events live: the raw JSON lines go to the log, a readable feed to the terminal.
+  claude --permission-mode acceptEdits -p --output-format stream-json --verbose \
+    ${budget_args[@]+"${budget_args[@]}"} \
+    "@PRD.md @progress.txt $(cat ralph-prompt.md)" 2> "$log.stderr" \
+    | tee "$log" | python3 ralph-stream.py || true
 
-  # Parse: cost, is_error, usage-limit flag, reset epoch (0 if unknown), result text.
-  read -r cost is_error hit_limit reset_at result < <(python3 - "$log" "$log.stderr" <<'PY'
+  # Parse the stream: cost, is_error, usage-limit flag, reset epoch (0 if unknown),
+  # whether paid overage was used, and the final result text.
+  read -r cost is_error hit_limit reset_at used_overage result < <(python3 - "$log" "$log.stderr" <<'PY'
 import json, re, sys
 raw = open(sys.argv[1]).read()
 stderr = open(sys.argv[2]).read()
-try:
-    d = json.loads(raw)
-    text, cost, err = d.get("result") or "", d.get("total_cost_usd", 0) or 0, bool(d.get("is_error"))
-except Exception:
+final, rate = None, {}
+for line in raw.splitlines():
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if event.get("type") == "result":
+        final = event
+    elif event.get("type") == "rate_limit_event":
+        rate = event.get("rate_limit_info", {})
+if final is not None:
+    text, cost, err = final.get("result") or "", final.get("total_cost_usd", 0) or 0, bool(final.get("is_error"))
+else:
     text, cost, err = raw, 0, True
 if err:
     text = (text + " " + stderr).strip()
-limit = err and re.search(r"usage limit|limit reached|rate limit|resets? ", text, re.I) is not None
+limited_by_event = bool(rate) and rate.get("status") not in (None, "allowed", "allowed_warning")
+limit = err and (limited_by_event or re.search(r"usage limit|limit reached|rate limit|resets? ", text, re.I) is not None)
 m = re.search(r"\|(\d{10})\b", text)  # e.g. "Claude AI usage limit reached|1790384089"
-reset = int(m.group(1)) if m else 0
-print(cost, str(err).lower(), str(limit).lower(), reset, text.replace("\n", " ")[:2000] or "<empty>")
+reset = int(rate.get("resetsAt") or 0) if limited_by_event else (int(m.group(1)) if m else 0)
+overage = bool(rate.get("isUsingOverage"))
+print(cost, str(err).lower(), str(limit).lower(), reset, str(overage).lower(), text.replace("\n", " ")[:2000] or "<empty>")
 PY
 )
   spent=$(python3 -c "print(round($spent + $cost, 4))")
-  echo "$result"
   echo "--- iteration $i cost \$$cost; total \$$spent; log $log"
+
+  if [[ "$used_overage" == "true" ]]; then
+    echo "=== Paid overage (extra usage) was used in iteration $i; stopping so the loop never runs on paid usage ==="
+    exit 1
+  fi
 
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo "=== PRD complete after $i iterations (\$$spent) ==="
