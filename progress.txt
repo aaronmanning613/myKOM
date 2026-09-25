@@ -1,0 +1,9 @@
+# Ralph progress log: myKOM foundation
+#
+# Append one entry per iteration, newest at the bottom, in this shape:
+#
+# ## <task id> - <short title> (<date>)
+# - Done: what was built
+# - Verified: commands run and their result
+# - Notes: TODO(decision) items, blockers, anything the next iteration should know
+#

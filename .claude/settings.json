@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(corepack:*)",
+      "Bash(node:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl http://localhost:*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh issue view:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(sleep:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git clean:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)"
+    ]
+  }
+}
