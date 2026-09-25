@@ -8,6 +8,13 @@
       "when": 1790370265209,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790371318362,
+      "tag": "0001_runners_and_strava_tokens",
+      "breakpoints": true
     }
   ]
 }
