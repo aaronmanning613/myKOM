@@ -3,6 +3,8 @@
 !.env.example
 .claude/worktrees/
 node_modules/
+dist/
+coverage/
 .playwright-mcp/
 playwright-report/
 test-results/
