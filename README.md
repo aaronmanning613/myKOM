@@ -94,3 +94,13 @@ The lookup uses the address the request came from. Locally that's a loopback add
 The e2e servers run in **test mode** (`NODE_ENV=test` or `E2E=1`, ignored when `NODE_ENV=production`): the API adds `POST /api/test/login`, which creates a throwaway Runner and signs the browser in, and swaps Strava for a local stand-in, so the tests never use real Strava credentials. These throwaway Runners stay in your development database.
 
 To stop Postgres, run `docker compose down` (add `-v` to also delete the data).
+
+### Manual checks
+
+The automated tests never touch real Strava, real browser location prompts or real Nominatim, so check these by hand before a release. Run `pnpm dev` (without `E2E=1`), with your Strava credentials and `NOMINATIM_USER_AGENT` in `.env`, and open http://localhost:5173 (not `127.0.0.1`).
+
+1. **Strava login.** Signed out, open Fitness Profile: you land on Log in. Click "Connect with Strava", approve on Strava, and you come back to myKOM with your avatar and first name in the header. Log out, then connect again: Strava shouldn't ask you to approve a second time, and you're the same Runner (your Fitness Profile is still there). Also try unticking a permission on Strava's approval screen: sign-in still works.
+2. **Denying on Strava.** Click "Connect with Strava", then Cancel on Strava: you're back on Log in with a message saying access was denied.
+3. **Geolocation prompt.** On Search Area, click "Use my location": the browser asks for permission. Allow it, and the centre becomes "My location"; save and reload to see it restored. Then block location for `localhost` in the browser's site settings and try again: you get the IP fallback (or, locally, the "Couldn’t find your location" message, since a loopback address isn't in GeoLite2).
+4. **Place search.** Search for a real postcode, pick a result, choose a radius, save, and reload.
+5. **Disconnect.** Click Disconnect: a dialog warns that all your data will be deleted. Cancel leaves everything as it was. Confirm, and you land on Log in with a confirmation message; myKOM no longer appears under "My Apps" at https://www.strava.com/settings/apps, and connecting again starts with an empty Fitness Profile and Search Area.

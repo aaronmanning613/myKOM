@@ -69,4 +69,4 @@ Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck 
 
 ### Wrap-up
 
-- [ ] **W1** A full pass: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`, plus one final click-through of every screen with the Playwright MCP browser. Run the README instructions from a clean `docker compose down -v` to make sure they work, and add a "Manual checks" section to the README (real Strava login click-through, the geolocation prompt, Disconnect). **Check:** all commands succeed from a clean database.
+- [x] **W1** A full pass: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`, plus one final click-through of every screen with the Playwright MCP browser. Run the README instructions from a clean `docker compose down -v` to make sure they work, and add a "Manual checks" section to the README (real Strava login click-through, the geolocation prompt, Disconnect). **Check:** all commands succeed from a clean database.
