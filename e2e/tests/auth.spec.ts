@@ -16,6 +16,19 @@ test.describe('signed out', () => {
     await expect(connect).toBeVisible();
     await expect(connect).toHaveAttribute('href', '/api/auth/strava');
   });
+
+  test('Strava is told to call back to the web app, where the state cookie lives', async ({
+    request,
+    baseURL,
+  }) => {
+    const response = await request.get('/api/auth/strava', { maxRedirects: 0 });
+    expect(response.status()).toBe(302);
+
+    const authorize = new URL(response.headers()['location'] ?? '');
+    const callback = new URL(authorize.searchParams.get('redirect_uri') ?? '');
+    expect(callback.origin).toBe(new URL(baseURL!).origin);
+    expect(callback.pathname).toBe('/api/auth/strava/callback');
+  });
 });
 
 test.describe('signed in', () => {

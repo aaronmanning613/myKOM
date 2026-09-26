@@ -15,7 +15,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       proxy: {
-        '/api': apiTarget,
+        // Keep the browser's Host header (the string shorthand would set changeOrigin: true), so
+        // the API builds the Strava callback URL on the web app's origin, where the OAuth state
+        // cookie was set, rather than on the API's own address.
+        '/api': { target: apiTarget, changeOrigin: false },
       },
     },
     test: {
