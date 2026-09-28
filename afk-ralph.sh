@@ -14,6 +14,7 @@
 # tool errors, plan usage, and a summary per iteration. The raw event stream for each iteration
 # is saved under ralph-logs/.
 # Safety: if an iteration reports paid overage (extra usage) in use, the loop stops.
+# It also stops (exit 3) when an iteration ends with <blocked>: something only a human can fix.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -108,6 +109,11 @@ PY
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo "=== PRD complete after $i iterations (\$$spent) ==="
     exit 0
+  fi
+
+  if [[ "$result" == *"<blocked>"* ]]; then
+    echo "=== Iteration $i is blocked on something only you can fix; stopping. See the latest entry in progress.txt ==="
+    exit 3
   fi
 
   if [[ "$is_error" == "true" && "$hit_limit" == "true" && "$resume_after_limit" == "true" ]]; then
