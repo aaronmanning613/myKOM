@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mykom",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "source ~/.nvm/nvm.sh >/dev/null && nvm use 22 >/dev/null && pnpm dev"],
+      "port": 5173
+    }
+  ]
+}

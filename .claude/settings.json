@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(pnpm:*)",
+      "Bash(E2E_LIVE=1 pnpm:*)",
       "Bash(NODE_ENV=test pnpm:*)",
       "Bash(E2E=1 pnpm:*)",
       "Bash(corepack:*)",
@@ -34,7 +35,10 @@
       "Bash(git checkout --:*)",
       "Bash(git clean:*)",
       "Bash(rm -rf:*)",
-      "Read(./.env)"
+      "Read(./.env)",
+      "Read(./.strava-live-token.json)",
+      "Bash(cat .env:*)",
+      "Bash(cat .strava-live-token.json:*)"
     ]
   },
   "enabledMcpjsonServers": [
