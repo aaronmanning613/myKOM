@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "strava:authorize": "tsx src/strava/live-authorize-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

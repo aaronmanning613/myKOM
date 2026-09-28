@@ -16,7 +16,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "db:generate": "pnpm -r --if-present db:generate",
     "db:migrate": "pnpm -r --if-present db:migrate",
-    "geolite2:update": "node scripts/update-geolite2.mjs"
+    "geolite2:update": "node scripts/update-geolite2.mjs",
+    "strava:authorize": "pnpm --filter @mykom/api strava:authorize"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

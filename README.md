@@ -53,17 +53,18 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
 ### Other commands
 
-| Command                | What it does                                    |
-| ---------------------- | ----------------------------------------------- |
-| `pnpm test`            | Unit tests (Vitest) in every package, see below |
-| `pnpm test:e2e`        | End-to-end tests (Playwright), see below        |
-| `pnpm typecheck`       | TypeScript checks in every package              |
-| `pnpm lint`            | ESLint and Prettier checks                      |
-| `pnpm format`          | Format everything with Prettier                 |
-| `pnpm build`           | Build every package                             |
-| `pnpm db:generate`     | Generate a migration from the Drizzle schema    |
-| `pnpm db:migrate`      | Apply pending migrations                        |
-| `pnpm geolite2:update` | Download the GeoLite2 City database, see below  |
+| Command                 | What it does                                    |
+| ----------------------- | ----------------------------------------------- |
+| `pnpm test`             | Unit tests (Vitest) in every package, see below |
+| `pnpm test:e2e`         | End-to-end tests (Playwright), see below        |
+| `pnpm typecheck`        | TypeScript checks in every package              |
+| `pnpm lint`             | ESLint and Prettier checks                      |
+| `pnpm format`           | Format everything with Prettier                 |
+| `pnpm build`            | Build every package                             |
+| `pnpm db:generate`      | Generate a migration from the Drizzle schema    |
+| `pnpm db:migrate`       | Apply pending migrations                        |
+| `pnpm geolite2:update`  | Download the GeoLite2 City database, see below  |
+| `pnpm strava:authorize` | Get a fresh token for the live Strava tests     |
 
 `packages/shared` holds code both apps use. In development, tests and typechecks it is used straight from its TypeScript source; `pnpm build` also compiles it to `dist/`, which the built API loads through the `mykom-dist` export condition (`pnpm --dir apps/api start`).
 

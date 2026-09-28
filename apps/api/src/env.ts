@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+export const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const rootEnvPath = resolve(repoRoot, '.env');
 
 /** Where `pnpm geolite2:update` puts the GeoLite2 City database unless GEOLITE2_CITY_DB says otherwise. */
