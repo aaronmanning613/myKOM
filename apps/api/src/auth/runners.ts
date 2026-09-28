@@ -8,7 +8,8 @@ import type { StravaCodeExchange } from '../strava/client.js';
  * they actually granted. Returns the Runner's id.
  */
 export async function upsertRunnerFromStrava(
-  db: Database['db'],
+  // Also accepts an open transaction, so the live tests can roll the upsert back.
+  db: Pick<Database['db'], 'transaction'>,
   { athlete, accessToken, refreshToken, expiresAt }: StravaCodeExchange,
   grantedScopes: string[],
 ): Promise<number> {

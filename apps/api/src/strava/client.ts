@@ -3,6 +3,7 @@
 export const STRAVA_AUTHORIZE_URL = 'https://www.strava.com/oauth/authorize';
 export const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 export const STRAVA_DEAUTHORIZE_URL = 'https://www.strava.com/oauth/deauthorize';
+export const STRAVA_ATHLETE_URL = 'https://www.strava.com/api/v3/athlete';
 
 /** The scopes myKOM asks for. The Runner may untick some on Strava's consent screen. */
 export const STRAVA_SCOPES = ['read', 'read_all', 'activity:read_all', 'profile:read_all'] as const;
@@ -62,9 +63,13 @@ export function createStravaClient({
   now = () => new Date(),
 }: StravaClientOptions) {
   async function post(url: string, params: Record<string, string>): Promise<unknown> {
+    return send(url, { method: 'POST', body: new URLSearchParams(params) });
+  }
+
+  async function send(url: string, init: RequestInit): Promise<unknown> {
     let res: Response;
     try {
-      res = await fetchFn(url, { method: 'POST', body: new URLSearchParams(params) });
+      res = await fetchFn(url, init);
     } catch (error) {
       throw new StravaError(`Strava request failed: ${(error as Error).message}`);
     }
@@ -127,6 +132,14 @@ export function createStravaClient({
       return (await refresh(runnerId, tokens.refreshToken)).accessToken;
     },
 
+    /** The signed-in athlete (`GET /athlete`), mapped the same way as on a code exchange. */
+    async getAthlete(accessToken: string): Promise<StravaAthlete> {
+      const body = await send(STRAVA_ATHLETE_URL, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      return parseAthlete(body);
+    },
+
     /** Revokes myKOM's access to the athlete's Strava account. */
     async deauthorize(accessToken: string): Promise<void> {
       await post(STRAVA_DEAUTHORIZE_URL, { access_token: accessToken });
@@ -157,7 +170,7 @@ function parseTokenSet(body: Record<string, unknown>): StravaTokenSet {
 
 function parseAthlete(athlete: unknown): StravaAthlete {
   if (!isRecord(athlete) || typeof athlete.id !== 'number') {
-    throw new StravaError('Strava sent no athlete with the token response');
+    throw new StravaError('Strava sent no athlete');
   }
   const { id, firstname, sex, profile, summit, premium } = athlete;
   return {

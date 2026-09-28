@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  STRAVA_ATHLETE_URL,
   STRAVA_DEAUTHORIZE_URL,
   STRAVA_TOKEN_URL,
   StravaError,
@@ -217,6 +218,46 @@ describe('getValidAccessToken', () => {
     const { client, fetch } = setup();
     await expect(client.getValidAccessToken(1)).rejects.toThrow(StravaError);
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('getAthlete', () => {
+  it('fetches the athlete with the access token and maps it like a code exchange', async () => {
+    const { client, fetch } = setup();
+    fetch.mockResolvedValue(
+      jsonResponse({
+        id: 42,
+        firstname: 'Paula',
+        sex: 'F',
+        profile: 'avatar/athlete/large.png',
+        premium: true,
+      }),
+    );
+    await expect(client.getAthlete('tok')).resolves.toEqual({
+      id: 42,
+      firstName: 'Paula',
+      sex: 'F',
+      avatarUrl: null,
+      isSubscriber: true,
+    });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe(STRAVA_ATHLETE_URL);
+    expect(init?.method).toBeUndefined();
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer tok');
+  });
+
+  it('throws a StravaError with the status when Strava refuses', async () => {
+    const { client, fetch } = setup();
+    fetch.mockResolvedValue(jsonResponse({ message: 'Authorization Error' }, 401));
+    const error = await client.getAthlete('tok').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(StravaError);
+    expect((error as StravaError).status).toBe(401);
+  });
+
+  it('throws a StravaError when the response has no athlete id', async () => {
+    const { client, fetch } = setup();
+    fetch.mockResolvedValue(jsonResponse({ firstname: 'Paula' }));
+    await expect(client.getAthlete('tok')).rejects.toThrow(StravaError);
   });
 });
 

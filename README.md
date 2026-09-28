@@ -57,6 +57,7 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 | ----------------------- | ----------------------------------------------- |
 | `pnpm test`             | Unit tests (Vitest) in every package, see below |
 | `pnpm test:e2e`         | End-to-end tests (Playwright), see below        |
+| `pnpm test:live`        | Opt-in tests against the real Strava account    |
 | `pnpm typecheck`        | TypeScript checks in every package              |
 | `pnpm lint`             | ESLint and Prettier checks                      |
 | `pnpm format`           | Format everything with Prettier                 |

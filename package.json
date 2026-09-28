@@ -11,6 +11,7 @@
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "test:e2e": "pnpm --filter @mykom/e2e test:e2e",
+    "test:live": "pnpm --filter @mykom/api test:live",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present typecheck",
