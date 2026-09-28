@@ -1,6 +1,7 @@
 import fastifyCookie from '@fastify/cookie';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { authRoutes } from './auth/routes.js';
+import { liveTestRoutes } from './auth/live-test-routes.js';
 import { testRoutes } from './auth/test-routes.js';
 import type { Database } from './db/client.js';
 import { fitnessProfileRoutes } from './fitness-profile/routes.js';
@@ -10,6 +11,7 @@ import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import type { StravaClient } from './strava/client.js';
+import type { LiveTokenStore } from './strava/live-token-store.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
@@ -25,6 +27,11 @@ export type BuildAppOptions = {
   sessionSecret: string;
   /** Registers test-only routes such as `POST /api/test/login`. Never on in production. */
   testRoutes?: boolean;
+  /**
+   * Live mode only: registers `POST /api/test/login-live`, which signs in the real Runner from
+   * this store. `strava` must use the same store. Never on in production.
+   */
+  liveTokenStore?: LiveTokenStore;
 };
 
 export type HealthStatus = {
@@ -41,6 +48,7 @@ export function buildApp({
   trustProxy = false,
   sessionSecret,
   testRoutes: enableTestRoutes = false,
+  liveTokenStore,
 }: BuildAppOptions) {
   const app = Fastify({ logger, trustProxy });
   app.register(fastifyCookie, { secret: sessionSecret });
@@ -57,6 +65,7 @@ export function buildApp({
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });
   if (enableTestRoutes) app.register(testRoutes, { db: database.db });
+  if (liveTokenStore) app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore });
 
   return app;
 }

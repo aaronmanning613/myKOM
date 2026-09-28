@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
 import type { StravaClient } from '../strava/client.js';
+import { DeauthorizeBlockedError } from '../strava/live-mode.js';
 import { requireRunner } from './guard.js';
 import { deleteRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
@@ -93,6 +94,10 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
     try {
       await strava.deauthorize(await strava.getValidAccessToken(runnerId));
     } catch (err) {
+      // Live test mode: keep everything, so the live token and the real Runner survive.
+      if (err instanceof DeauthorizeBlockedError) {
+        return reply.code(403).send({ error: 'deauthorize_blocked', message: err.message });
+      }
       // The Runner asked for their data to go, so delete it even when Strava can't be reached
       // or the token was already revoked; they can still revoke access in Strava's settings.
       // TODO(decision): whether a failed deauthorize should block deletion so they can retry.

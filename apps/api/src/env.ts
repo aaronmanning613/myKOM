@@ -35,6 +35,11 @@ export type Env = {
    * a local stand-in, so end-to-end tests never need real credentials or reach Strava.
    */
   testMode: boolean;
+  /**
+   * E2E_LIVE=1, never in production: the real-account e2e mode. Strava is real (with the live
+   * token store), deauthorize is blocked, and `POST /api/test/login-live` is registered.
+   */
+  liveMode: boolean;
 };
 
 /** Loads the repo-root `.env` into `process.env` if present. Existing variables win. */
@@ -54,6 +59,12 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (sessionSecret.length < 32) {
     throw new Error('SESSION_SECRET must be at least 32 characters');
   }
+  const notProduction = source.NODE_ENV !== 'production';
+  const testMode = notProduction && (source.NODE_ENV === 'test' || source.E2E === '1');
+  const liveMode = notProduction && source.E2E_LIVE === '1';
+  if (testMode && liveMode) {
+    throw new Error('E2E_LIVE=1 can’t be combined with test mode (NODE_ENV=test or E2E=1)');
+  }
   return {
     host: source.API_HOST ?? '127.0.0.1',
     port,
@@ -67,8 +78,8 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
       source.GEOLITE2_CITY_DB?.trim() || DEFAULT_GEOLITE2_CITY_DB,
     ),
     trustProxy: parseTrustProxy(source.TRUST_PROXY),
-    testMode:
-      source.NODE_ENV !== 'production' && (source.NODE_ENV === 'test' || source.E2E === '1'),
+    testMode,
+    liveMode,
   };
 }
 

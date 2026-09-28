@@ -26,6 +26,7 @@ describe('readEnv', () => {
       geolite2CityDbPath: join(repoRoot, DEFAULT_GEOLITE2_CITY_DB),
       trustProxy: false,
       testMode: false,
+      liveMode: false,
     });
   });
 
@@ -53,6 +54,7 @@ describe('readEnv', () => {
       geolite2CityDbPath: '/var/lib/geoip/GeoLite2-City.mmdb',
       trustProxy: true,
       testMode: false,
+      liveMode: false,
     });
   });
 
@@ -83,6 +85,21 @@ describe('readEnv', () => {
     [{ NODE_ENV: 'production', E2E: '1', SESSION_SECRET: 's'.repeat(32) }, false],
   ])('turns test mode on only outside production (%o)', (source, testMode) => {
     expect(readEnv(source).testMode).toBe(testMode);
+  });
+
+  it.each([
+    [{ E2E_LIVE: '1' }, true],
+    [{ E2E_LIVE: '0' }, false],
+    [{ NODE_ENV: 'production', E2E_LIVE: '1', SESSION_SECRET: 's'.repeat(32) }, false],
+  ])('turns live mode on only outside production (%o)', (source, liveMode) => {
+    expect(readEnv(source).liveMode).toBe(liveMode);
+  });
+
+  it.each([
+    { E2E_LIVE: '1', E2E: '1' },
+    { E2E_LIVE: '1', NODE_ENV: 'test' },
+  ])('refuses live mode together with test mode (%o)', (source) => {
+    expect(() => readEnv(source)).toThrow(/E2E_LIVE/);
   });
 
   it('rejects an invalid port', () => {
