@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --if-present dev",
+    "dev:live": "E2E_LIVE=1 DATABASE_URL=postgres://mykom:mykom@localhost:5433/mykom_e2e_live pnpm -r --parallel --if-present dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "test:e2e": "pnpm --filter @mykom/e2e test:e2e",
