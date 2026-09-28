@@ -50,7 +50,8 @@ test('the Search Area loads and saves for the real Runner', async ({ page }) => 
   await page.route('**/api/geocode?*', (route) => route.fulfill({ json: geocode }));
   await signInLive(page);
   await page.goto('/search-area');
-  await expect(page.getByTestId('saved-search-area')).toBeVisible();
+  // An earlier run may have saved a Search Area already, or the database may be fresh.
+  await expect(page.getByLabel('Place or postcode')).toBeVisible();
 
   await page.getByLabel('Place or postcode').fill('Leeds');
   await page.getByRole('button', { name: 'Search' }).click();
@@ -58,7 +59,8 @@ test('the Search Area loads and saves for the real Runner', async ({ page }) => 
     .getByRole('list', { name: 'Places found' })
     .getByRole('button', { name: label })
     .click();
-  await page.getByText('25 km').click();
+  // By role, not text: a Search Area saved at 25 km by an earlier run also shows "25 km".
+  await page.getByRole('radio', { name: '25 km' }).check();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toHaveText('Search Area saved.');
 

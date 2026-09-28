@@ -58,6 +58,8 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 | `pnpm test`             | Unit tests (Vitest) in every package, see below |
 | `pnpm test:e2e`         | End-to-end tests (Playwright), see below        |
 | `pnpm test:live`        | Opt-in tests against the real Strava account    |
+| `pnpm test:e2e:live`    | Opt-in e2e tests signed in as the real Runner   |
+| `pnpm dev:live`         | Dev servers in live test mode, see below        |
 | `pnpm typecheck`        | TypeScript checks in every package              |
 | `pnpm lint`             | ESLint and Prettier checks                      |
 | `pnpm format`           | Format everything with Prettier                 |
@@ -96,6 +98,20 @@ The lookup uses the address the request came from. Locally that's a loopback add
 The e2e servers run in **test mode** (`NODE_ENV=test` or `E2E=1`, ignored when `NODE_ENV=production`): the API adds `POST /api/test/login`, which creates a throwaway Runner and signs the browser in, and swaps Strava for a local stand-in, so the tests never use real Strava credentials. These throwaway Runners stay in your development database.
 
 To stop Postgres, run `docker compose down` (add `-v` to also delete the data).
+
+### Live Strava tests
+
+Every test above mocks Strava. These opt-in suites run against the Runner's **real Strava account** instead, using a real OAuth token rather than a password. They are not part of `pnpm test` or `pnpm test:e2e`, and they skip with a message (rather than fail) when there's no live token.
+
+- `pnpm test:live` (Vitest, `apps/api/src/**/*.live.test.ts`): getting a valid access token, refreshing it and saving the rotated token; that the real `GET /athlete` response has the fields myKOM relies on and maps to a valid Runner (inside a rolled-back transaction on `mykom_test`); and that the granted scopes include everything myKOM asks for. It makes about 2 Strava calls and logs the rate-limit usage at the end.
+- `pnpm test:e2e:live` (Playwright, `e2e/live/`): servers start in **live test mode** (`E2E_LIVE=1`, never in production) on ports 3201/5274 with their own database, `mykom_e2e_live` (override with `E2E_LIVE_DATABASE_URL`). A test-only route, `POST /api/test/login-live`, takes no token from the browser: the server reads the token file, fetches the real athlete and signs in as them. The tests check the header shows the real first name and avatar, that Fitness Profile and Search Area load and save, and Log out. It makes about 5 Strava calls.
+- `pnpm dev:live` runs the dev servers (ports 3001/5173) in live test mode against `mykom_e2e_live`, for clicking through as the real Runner: open http://localhost:5173 and run `fetch('/api/test/login-live', { method: 'POST' })` in the console, then reload.
+
+**The token.** The live token lives in `.strava-live-token.json` at the repo root (git-ignored, mode 0600; never commit it). The first time, it's seeded from `STRAVA_REFRESH_TOKEN`, `STRAVA_ACCESS_TOKEN` and `STRAVA_TOKEN_EXPIRES_AT` in `.env`. Strava can hand out a new refresh token on every refresh, so the file always holds the latest one and is preferred over `.env`. If the token is lost or revoked, run `pnpm strava:authorize`: it prints Strava's authorize URL; open it, approve, and paste back the URL you're redirected to (`http://localhost/exchange_token?...`, which won't load, which is fine). The script exchanges the code and writes the token file, printing only your athlete id, first name and granted scopes.
+
+**Never Disconnect with the live token.** Disconnect calls Strava's deauthorize, which revokes the token, and you'd have to re-consent with `pnpm strava:authorize`. In live test mode deauthorize is blocked: `POST /api/auth/disconnect` replies 403 `deauthorize_blocked` and deletes nothing. Don't click Disconnect while signed in live; Disconnect stays covered by the mocked tests only. Never use a Strava password or automate Strava's login or approval pages either.
+
+**Rate limits.** Strava allows the app 100 read requests per 15 minutes and 1,000 per day, shared by everything using the app (including real sign-ins). Run the live suites sparingly, e.g. before a release rather than on every change.
 
 ### Manual checks
 
