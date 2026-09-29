@@ -12,6 +12,7 @@ import { locateIpRoutes } from './locate-ip/routes.js';
 import { endSession, sessionRunnerId } from './auth/session.js';
 import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
 import type { JobQueue } from './jobs/queue.js';
+import { mappedAreasRoutes } from './mapped-areas/routes.js';
 import { preferencesRoutes } from './preferences/routes.js';
 import { resultsRoutes } from './results/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
@@ -131,6 +132,7 @@ export function buildApp({
   app.register(preferencesRoutes, { db: database.db });
   app.register(searchAreaRoutes, { db: database.db, strava, queue });
   app.register(resultsRoutes, { db: database.db, strava, queue, debug: debugRoutes });
+  app.register(mappedAreasRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });
   if (tick) app.register(tickRoutes, tick);

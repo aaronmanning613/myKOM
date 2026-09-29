@@ -207,7 +207,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - while work is pending, it drains for up to about 2 s first.
   - `GET /api/debug/segments` (outside production only) returns the same pipeline's per-Segment exclusion reasons.
   - **Check:** seam-3 tests: lists match `rank` for a seeded area; a poll advances progress; "continues tomorrow" appears at the cap; the debug output agrees with the results for every Segment; one Runner never sees another's PBs.
-- [ ] **X3** Mapped Areas: `GET/POST/DELETE /api/mapped-areas` (label, centre, radius 10/25/50, default 25), with a mapping-priority crawl and progress in the list. Delete stops its pending jobs.
+- [x] **X3** Mapped Areas: `GET/POST/DELETE /api/mapped-areas` (label, centre, radius 10/25/50, default 25), with a mapping-priority crawl and progress in the list. Delete stops its pending jobs.
   - **Check:** seam-3 tests for create, list with progress, delete cancelling jobs, and scoping to the signed-in Runner.
 
 ### UI (spec: UI; decided prototypes on branches `prototype/results-list` and `prototype/onboarding`, variant A)
