@@ -87,7 +87,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - `recordFor(segment, gender)` returns seconds, or a status of `hazardous`/`missing`/`unparseable`;
   - `isHeld(pb, record)` counts whole-second ties as Held, and a missing PB is not Held.
   - **Check:** table tests for every format, hazardous, missing gender, garbage strings and ties.
-- [ ] **C5** The flat Predicted Time model:
+- [x] **C5** The flat Predicted Time model:
   - usable Benchmarks exclude **soft** ones (pace slower than a longer Benchmark's pace), and at least two are needed;
   - log-log interpolation between neighbours;
   - extrapolation past either end uses the two nearest Benchmarks' exponent clamped to 1.02–1.15, and is low confidence;
