@@ -82,7 +82,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - runs older than 3 years are ignored;
     - moving time is used, not elapsed;
     - a run just outside the band is ignored.
-- [ ] **C4** Target Record parsing:
+- [x] **C4** Target Record parsing:
   - `parseXoms` accepts `"17s"`, `"1:24"` and `"h:mm:ss"`, and anything else is `unparseable`;
   - `recordFor(segment, gender)` returns seconds, or a status of `hazardous`/`missing`/`unparseable`;
   - `isHeld(pb, record)` counts whole-second ties as Held, and a missing PB is not Held.
