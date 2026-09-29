@@ -124,8 +124,12 @@ export function effective(row: Row) {
   return row.pinned ?? row.generated;
 }
 
+export function distanceOf(id: DistanceId) {
+  return DISTANCES.find((d) => d.id === id)!;
+}
+
 export function label(id: DistanceId) {
-  return DISTANCES.find((d) => d.id === id)!.label;
+  return distanceOf(id).label;
 }
 
 /** A fake first crawl: runs checked and Segments found grow until done. */

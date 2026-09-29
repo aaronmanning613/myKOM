@@ -5,7 +5,11 @@
 import { formatTime, parseTime } from '@mykom/shared';
 import { useState } from 'react';
 import {
+  DISTANCES,
   TARGETS,
+  distanceOf,
+  timeFor,
+  vdotOf,
   effective,
   generate,
   label,
@@ -30,7 +34,15 @@ function usePins() {
       else next[id] = seconds;
       return next;
     });
-  return { pins, pin };
+  return { pins, pin, setPins };
+}
+
+/** Every Benchmark re-derived (and pinned) from one time, via the same VDOT curve as generation. */
+function scaleAll(id: DistanceId, seconds: number): Pins {
+  const vdot = vdotOf(distanceOf(id).metres, seconds);
+  const pins: Pins = {};
+  for (const d of DISTANCES) pins[d.id] = d.id === id ? seconds : timeFor(vdot, d.metres);
+  return pins;
 }
 
 function t(seconds: number | null) {
@@ -167,58 +179,102 @@ function Spinner({ text }: { text: string }) {
 function BenchmarkTable({
   rows,
   pin,
+  setPins,
 }: {
   rows: Row[];
   pin: (id: DistanceId, s: number | null) => void;
+  setPins: (pins: Pins) => void;
 }) {
+  // The row the Runner last typed into offers to re-derive every other Benchmark from it.
+  const [lastEdited, setLastEdited] = useState<DistanceId | null>(null);
+  const [scaledFrom, setScaledFrom] = useState<string | null>(null);
+  const anyPinned = rows.some((r) => r.pinned !== null);
+  const anyGenerated = rows.some((r) => r.generated !== null);
   return (
-    <table className="mt-4 w-full max-w-xl text-sm">
-      <thead className="text-left text-gray-500">
-        <tr>
-          <th className="py-1 font-normal">Distance</th>
-          <th className="font-normal">Your Benchmark</th>
-          <th className="font-normal" />
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr
-            key={r.id + String(r.pinned) + String(r.generated)}
-            className="border-t border-gray-200"
+    <>
+      <div className="mt-4 flex min-h-8 max-w-xl items-center gap-3 text-sm">
+        {scaledFrom && (
+          <span className="text-gray-700">All Benchmarks updated from your {scaledFrom}.</span>
+        )}
+        {anyPinned && anyGenerated && (
+          <button
+            type="button"
+            onClick={() => {
+              setPins({});
+              setScaledFrom(null);
+              setLastEdited(null);
+            }}
+            className="ml-auto text-orange-700 underline"
           >
-            <td className="py-2 font-medium">{label(r.id)}</td>
-            <td>
-              <TimeInput
-                value={effective(r)}
-                onCommit={(s) => pin(r.id, s === r.generated ? null : s)}
-                className={r.pinned !== null ? 'border-orange-500 bg-orange-50' : ''}
-              />
-            </td>
-            <td className="text-gray-600">
-              {r.pinned !== null && r.generated !== null && (
-                <>
-                  📌 yours · generated {t(r.generated)}{' '}
+            Reset all to generated
+          </button>
+        )}
+      </div>
+      <table className="w-full max-w-2xl table-fixed text-sm">
+        <thead className="text-left text-gray-500">
+          <tr>
+            <th className="w-24 py-1 font-normal">Distance</th>
+            <th className="w-32 font-normal">Your Benchmark</th>
+            <th className="font-normal" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr
+              key={r.id + String(r.pinned) + String(r.generated)}
+              className="border-t border-gray-200"
+            >
+              <td className="py-2 font-medium">{label(r.id)}</td>
+              <td>
+                <TimeInput
+                  value={effective(r)}
+                  onCommit={(s) => {
+                    pin(r.id, s === r.generated ? null : s);
+                    setLastEdited(s === null || s === r.generated ? null : r.id);
+                    setScaledFrom(null);
+                  }}
+                  className={r.pinned !== null ? 'border-orange-500 bg-orange-50' : ''}
+                />
+              </td>
+              <td className="text-gray-600">
+                {r.pinned !== null && r.generated !== null && (
+                  <>
+                    📌 yours · generated {t(r.generated)}{' '}
+                    <button
+                      type="button"
+                      onClick={() => pin(r.id, null)}
+                      className="text-orange-700 underline"
+                    >
+                      use generated
+                    </button>
+                  </>
+                )}
+                {r.pinned !== null && r.generated === null && '📌 yours'}
+                {lastEdited === r.id && r.pinned !== null && (
                   <button
                     type="button"
-                    onClick={() => pin(r.id, null)}
-                    className="text-orange-700 underline"
+                    onClick={() => {
+                      setPins(scaleAll(r.id, r.pinned!));
+                      setScaledFrom(`${label(r.id)} of ${t(r.pinned)}`);
+                      setLastEdited(null);
+                    }}
+                    className="ml-2 rounded bg-orange-600 px-2 py-0.5 text-xs font-medium text-white"
                   >
-                    use generated
+                    Update all from this
                   </button>
-                </>
-              )}
-              {r.pinned !== null && r.generated === null && '📌 yours'}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
 export function VariantA({ stage, scenario }: { stage: Stage; scenario: Scenario }) {
   const gen = generate(scenario);
-  const { pins, pin } = usePins();
+  const { pins, pin, setPins } = usePins();
   const rows = rowsFor(gen.vdot, pins);
   const [step, setStep] = useState(1);
   const generated = useFakeDelay(1800, scenario + stage);
@@ -237,7 +293,7 @@ export function VariantA({ stage, scenario }: { stage: Stage; scenario: Scenario
         <div className="mt-2">
           <Sources gen={gen} />
         </div>
-        <BenchmarkTable rows={rows} pin={pin} />
+        <BenchmarkTable rows={rows} pin={pin} setPins={setPins} />
       </>
     );
 
@@ -267,7 +323,7 @@ export function VariantA({ stage, scenario }: { stage: Stage; scenario: Scenario
               <div className="mt-2">
                 <Sources gen={gen} />
               </div>
-              <BenchmarkTable rows={rows} pin={pin} />
+              <BenchmarkTable rows={rows} pin={pin} setPins={setPins} />
               <button
                 type="button"
                 disabled={entered < 2}
