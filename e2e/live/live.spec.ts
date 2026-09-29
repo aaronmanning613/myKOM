@@ -26,21 +26,29 @@ test('the Fitness Profile loads and saves for the real Runner', async ({ page })
   await signInLive(page);
   await page.goto('/fitness-profile');
   const fiveK = page.getByLabel('5K', { exact: true });
+  const fiveKRow = page.getByRole('row').filter({ has: fiveK });
   const original = await fiveK.inputValue();
+  const wasPinned = (await fiveKRow.textContent())?.includes('📌 yours') ?? false;
 
   // A different time each run, so the reload proves this run's save.
   const time = `19:${String(new Date().getSeconds()).padStart(2, '0')}`;
   await fiveK.fill(time);
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Fitness Profile saved.');
+  await fiveK.blur();
+  await expect(page.getByRole('status')).toHaveText('Saved.');
   await page.reload();
   await expect(fiveK).toHaveValue(time);
+  await expect(fiveKRow).toContainText('📌 yours');
 
-  // Put the Runner's own 5K back.
-  if (original) await fiveK.fill(original);
-  else await page.getByRole('button', { name: 'Clear 5K' }).click();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Fitness Profile saved.');
+  // Put the Runner's own 5K back: their pin, the generated time, or nothing.
+  if (original && !wasPinned) {
+    await page.getByRole('button', { name: 'Use generated 5K' }).click();
+    await expect(page.getByRole('status')).toHaveText('5K is back to the generated time.');
+  } else {
+    await fiveK.fill(original);
+    await fiveK.blur();
+    await expect(page.getByRole('status')).toHaveText('Saved.');
+  }
+  await expect(fiveK).toHaveValue(original);
 });
 
 test('the Search Area loads and saves for the real Runner', async ({ page }) => {

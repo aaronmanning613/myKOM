@@ -1,6 +1,7 @@
+import type { FitnessProfile } from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
-import { runners, stravaTokens } from '../db/schema.js';
+import { activities, runners, stravaTokens } from '../db/schema.js';
 import { STRAVA_DEAUTHORIZE_URL } from '../strava/client.js';
 import { testModeStravaFetch } from '../strava/test-fetch.js';
 import { buildTestApp, useTestDatabase } from '../test/app.js';
@@ -62,6 +63,52 @@ describe('POST /api/test/login', () => {
 
     expect(first.firstName).toBe('Test');
     expect(second.id).not.toBe(first.id);
+    await app.close();
+  });
+});
+
+describe('POST /api/test/runs', () => {
+  it('is not registered unless test routes are on', async () => {
+    const { app } = buildTestApp(database);
+    const res = await app.inject({ method: 'POST', url: '/api/test/runs', payload: { runs: [] } });
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('stores runs for the signed-in Runner and applies the generated profile', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const login = await app.inject({ method: 'POST', url: '/api/test/login' });
+    const me = login.json<{ id: number }>();
+    runnerIds.push(me.id);
+    const session = login.cookies.find((c) => c.name === SESSION_COOKIE)!;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/test/runs',
+      cookies: { [SESSION_COOKIE]: session.value },
+      payload: {
+        runs: [
+          { name: 'Marathon', distance: 42_195, movingTime: 8463, daysAgo: 300 },
+          { name: '10K race', distance: 10_000, movingTime: 1839, daysAgo: 100 },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const profile = res.json<FitnessProfile>();
+    expect(profile.generation?.vdot).toBeCloseTo(71.1, 1);
+    expect(profile.generation?.sources.map((s) => s.name).sort()).toEqual(['10K race', 'Marathon']);
+    expect(profile.benchmarks).toHaveLength(13);
+    expect(profile.benchmarks.every((b) => b.source === 'generated')).toBe(true);
+    const stored = await db.select().from(activities).where(eq(activities.runnerId, me.id));
+    expect(stored).toHaveLength(2);
+    await app.close();
+  });
+
+  it('needs a session', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const res = await app.inject({ method: 'POST', url: '/api/test/runs', payload: { runs: [] } });
+    expect(res.statusCode).toBe(401);
     await app.close();
   });
 });

@@ -212,7 +212,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### UI (spec: UI; decided prototypes on branches `prototype/results-list` and `prototype/onboarding`, variant A)
 
-- [ ] **U1** The Fitness Profile page, rebuilt on N2:
+- [x] **U1** The Fitness Profile page, rebuilt on N2:
   - the "Estimated from …" sentence;
   - the 13-row table with editable times, pinned state (orange, "📌 yours · generated X · use generated") and soft flag;
   - **Update all from this** on the row just edited, with its confirmation;
