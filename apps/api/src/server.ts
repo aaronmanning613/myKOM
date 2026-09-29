@@ -43,11 +43,13 @@ const nominatim =
         userAgent: env.nominatimUserAgent,
         cache: createDbGeocodeCache(database.db),
       });
-// A missing or unreadable GeoLite2 database only turns the IP lookup off; it never stops startup.
+// The IP fallback is off in production. Elsewhere, a missing or unreadable GeoLite2 database
+// only turns the IP lookup off; it never stops startup.
+const ipFallback = !env.production;
 let ipLocator: IpLocator | undefined;
 let ipLocatorError: unknown;
 try {
-  ipLocator = await openIpLocator(env.geolite2CityDbPath);
+  if (ipFallback) ipLocator = await openIpLocator(env.geolite2CityDbPath);
 } catch (error) {
   ipLocatorError = error;
 }
@@ -64,6 +66,7 @@ const app = buildApp({
   tokenCipher,
   nominatim,
   ipLocator,
+  ipFallback,
   trustProxy: env.trustProxy,
   sessionSecret: env.sessionSecret,
   testRoutes: env.testMode,
@@ -86,7 +89,7 @@ if (usesDevTokenEncryptionKey(env)) {
 if (!nominatim) app.log.warn('NOMINATIM_USER_AGENT is not set, so place search is unavailable');
 if (ipLocatorError) {
   app.log.error({ err: ipLocatorError }, 'Could not open the GeoLite2 City database');
-} else if (!ipLocator) {
+} else if (ipFallback && !ipLocator) {
   app.log.warn(
     `No GeoLite2 City database at ${env.geolite2CityDbPath}, so IP location is unavailable (run pnpm geolite2:update)`,
   );

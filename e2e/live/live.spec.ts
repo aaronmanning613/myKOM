@@ -62,18 +62,22 @@ test('the Search Area loads and saves for the real Runner', async ({ page }) => 
   await expect(page.getByLabel('Place or postcode')).toBeVisible();
 
   await page.getByLabel('Place or postcode').fill('Leeds');
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page
+  const centre = page.getByRole('region', { name: 'Centre' });
+  await centre.getByRole('button', { name: 'Search' }).click();
+  await centre
     .getByRole('list', { name: 'Places found' })
     .getByRole('button', { name: label })
     .click();
   // By role, not text: a Search Area saved at 1 km by an earlier run also shows "1 km".
   // Saving searches: the starred Segments read, plus any of the Runner's runs through Leeds.
-  await page.getByRole('radio', { name: '1 km' }).check();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Search Area saved.');
+  await page
+    .getByRole('group', { name: 'Radius', exact: true })
+    .getByRole('radio', { name: '1 km' })
+    .check();
+  await page.getByRole('button', { name: 'Save and see results' }).click();
+  await expect(page).toHaveURL(/\/results$/, { timeout: 30_000 });
 
-  await page.reload();
+  await page.goto('/search-area');
   await expect(page.getByTestId('saved-search-area')).toHaveText(
     `Your Search Area: 1 km around ${label}`,
   );

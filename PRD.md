@@ -225,7 +225,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - a slim banner under the nav on every signed-in page while `/api/me` reports a suggestion;
   - **Apply** in place, **Review** (opens the Fitness Profile with suggested values beside current ones), **×** dismiss.
   - **Check:** component tests plus e2e for apply and dismiss (seed a suggestion through a test-only route or DB helper).
-- [ ] **U3** The Search Area page:
+- [x] **U3** The Search Area page:
   - radii 1/2/5/10 (10 marked "slower, uses more of the daily budget");
   - saving calls `POST /api/search` and goes to Results;
   - the IP fallback is hidden when the server reports it unavailable, as it always is in production (config);

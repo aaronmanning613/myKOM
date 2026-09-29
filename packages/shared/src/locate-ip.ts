@@ -12,9 +12,10 @@ export type IpLocation = GeocodeResult & {
 
 /**
  * What `GET /api/locate-ip` returns. `available: false` when the lookup can't help:
- * `no_database` (the GeoLite2 City database isn't installed) or `not_found` (the address
- * isn't in it, e.g. a private or loopback address in development).
+ * `disabled` (the fallback is off, as it always is in production), `no_database` (the
+ * GeoLite2 City database isn't installed) or `not_found` (the address isn't in it, e.g. a
+ * private or loopback address in development).
  */
 export type LocateIpResponse =
   | { available: true; location: IpLocation }
-  | { available: false; reason: 'no_database' | 'not_found' };
+  | { available: false; reason: 'disabled' | 'no_database' | 'not_found' };

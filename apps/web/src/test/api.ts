@@ -21,7 +21,7 @@ export function json(body: unknown, status = 200): Response {
 
 /**
  * Unlisted routes respond 404. Unless overridden, the health route answers OK, the
- * Fitness Profile is empty and there's no Search Area.
+ * Fitness Profile is empty and there's no Search Area or Mapped Area.
  */
 export function stubApi(routes: Record<string, Handler>) {
   const all: Record<string, Handler> = {
@@ -29,6 +29,7 @@ export function stubApi(routes: Record<string, Handler>) {
     'GET /api/fitness-profile': () =>
       json({ benchmarks: [], generation: null, suggestion: null, resyncedAt: null }),
     'GET /api/search-area': () => json({ searchArea: null }),
+    'GET /api/mapped-areas': () => json({ mappedAreas: [] }),
     ...routes,
   };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

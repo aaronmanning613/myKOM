@@ -72,6 +72,7 @@ export function buildTestApp(
     debugRoutes = false,
     nominatim: withNominatim = true,
     ipLocator,
+    ipFallback,
     trustProxy,
     tick,
   }: {
@@ -81,6 +82,7 @@ export function buildTestApp(
     nominatim?: boolean;
     /** Leave out to build the app as if the GeoLite2 City database were missing. */
     ipLocator?: IpLocator;
+    ipFallback?: boolean;
     trustProxy?: BuildAppOptions['trustProxy'];
     tick?: BuildAppOptions['tick'];
   } = {},
@@ -111,6 +113,7 @@ export function buildTestApp(
     tokenCipher: testTokenCipher,
     nominatim: withNominatim ? nominatim : undefined,
     ipLocator,
+    ipFallback,
     trustProxy,
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,

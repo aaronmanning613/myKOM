@@ -36,6 +36,11 @@ export type BuildAppOptions = {
   nominatim?: NominatimClient;
   /** Backs `GET /api/locate-ip`; without it, the lookup replies `{ available: false }`. */
   ipLocator?: IpLocator;
+  /**
+   * Offers the IP lookup as the "Use my location" fallback (default on). Never on in
+   * production, where `GET /api/locate-ip` replies `{ available: false, reason: 'disabled' }`.
+   */
+  ipFallback?: boolean;
   /** Fastify's `trustProxy`: which proxies' X-Forwarded-For to believe for the client IP. */
   trustProxy?: FastifyServerOptions['trustProxy'];
   /** Signs the session and OAuth state cookies. */
@@ -75,6 +80,7 @@ export function buildApp({
   tokenCipher,
   nominatim,
   ipLocator,
+  ipFallback = true,
   trustProxy = false,
   sessionSecret,
   testRoutes: enableTestRoutes = false,
@@ -134,7 +140,7 @@ export function buildApp({
   app.register(resultsRoutes, { db: database.db, strava, queue, debug: debugRoutes });
   app.register(mappedAreasRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });
-  app.register(locateIpRoutes, { db: database.db, ipLocator });
+  app.register(locateIpRoutes, { db: database.db, ipLocator, enabled: ipFallback });
   if (tick) app.register(tickRoutes, tick);
   if (enableTestRoutes) app.register(testRoutes, { db: database.db, tokenCipher });
   if (liveTokenStore) {
