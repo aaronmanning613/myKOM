@@ -41,10 +41,11 @@ The time the Runner's Fitness Profile suggests they could run a given Segment in
 How far to trust a Predicted Time: high or low. Low when the prediction stretches beyond what the Fitness Profile or the Segment's data can support; high when the Runner's Segment PB backs it.
 
 **Achievable**:
-A Segment whose Predicted Time is within the Runner's chosen margin of its Target Record.
+A Segment whose Predicted Time is within a fixed margin (5%) of its Target Record. The margin is not shown to the Runner or set by them.
 
 **Nearest Miss**:
 A Segment that is not Achievable but is among the closest to it, shown when the Runner has few Achievable Segments.
+_Avoid_: Gap (in Strava, GAP means grade adjusted pace)
 
 **Impressiveness**:
 How much taking a Segment's Target Record means, measured by how many athletes have run the Segment.
