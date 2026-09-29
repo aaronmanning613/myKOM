@@ -6,3 +6,4 @@ export * from './locate-ip.js';
 export * from './search-area.js';
 export * from './time.js';
 export * from './tunables.js';
+export * from './vdot.js';

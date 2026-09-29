@@ -65,7 +65,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - Update the Fitness Profile screen, the API validation and every test.
   - Also add the tunables module (see Conventions) holding the spec's full Tunables table.
   - **Check:** shared, API and web tests pass with 13 rows; the Fitness Profile e2e test enters and persists a Benchmark at a new distance (e.g. 8K).
-- [ ] **C2** VDOT in the shared core:
+- [x] **C2** VDOT in the shared core:
   - `vdotOf(metres, seconds)` and `timeFor(vdot, metres)` (Daniels & Gilbert; the exact formulas are in the spec);
   - `benchmarksFromVdot(vdot)` giving all 13;
   - `updateAllFrom(distance, seconds)`.
