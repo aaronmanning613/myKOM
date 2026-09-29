@@ -1,7 +1,21 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, getTableName, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
-import { runners, stravaTokens } from '../db/schema.js';
+import {
+  activities,
+  benchmarks,
+  crawls,
+  fitnessProfiles,
+  mappedAreas,
+  runnerSegments,
+  runners,
+  searchAreas,
+  segmentEfforts,
+  segments,
+  stravaJobs,
+  stravaReadUsage,
+  stravaTokens,
+} from '../db/schema.js';
 import { STRAVA_AUTHORIZE_URL, STRAVA_DEAUTHORIZE_URL } from '../strava/client.js';
 import { buildTestApp, randomAthleteId, testTokenCipher, useTestDatabase } from '../test/app.js';
 import { STATE_COOKIE } from './routes.js';
@@ -279,6 +293,93 @@ describe('POST /api/auth/disconnect', () => {
     };
   }
 
+  /** Every per-Runner table, by the column that links it to the Runner. */
+  const perRunnerTables = {
+    stravaTokens: [stravaTokens, stravaTokens.runnerId],
+    benchmarks: [benchmarks, benchmarks.runnerId],
+    searchAreas: [searchAreas, searchAreas.runnerId],
+    fitnessProfiles: [fitnessProfiles, fitnessProfiles.runnerId],
+    activities: [activities, activities.runnerId],
+    runnerSegments: [runnerSegments, runnerSegments.runnerId],
+    segmentEfforts: [segmentEfforts, segmentEfforts.runnerId],
+    mappedAreas: [mappedAreas, mappedAreas.runnerId],
+    crawls: [crawls, crawls.runnerId],
+    stravaJobs: [stravaJobs, stravaJobs.runnerId],
+    stravaReadUsage: [stravaReadUsage, stravaReadUsage.runnerId],
+  } as const;
+  const perRunnerTableNames = Object.values(perRunnerTables).map(([table]) => getTableName(table));
+
+  /** The Runner's row count in `runners` and every per-Runner table. */
+  async function perRunnerCounts(runnerId: number) {
+    const counts: Record<string, number> = {
+      runners: await db.$count(runners, eq(runners.id, runnerId)),
+    };
+    for (const [name, [table, column]] of Object.entries(perRunnerTables)) {
+      counts[name] = await db.$count(table, eq(column, runnerId));
+    }
+    return counts;
+  }
+
+  /** Gives the Runner a row in every per-Runner table, linked to a shared Segment. */
+  async function seedEverything(runnerId: number, segmentId: number) {
+    const activityId = segmentId + 1;
+    await db
+      .insert(benchmarks)
+      .values({ runnerId, distance: '5k', seconds: 1200, source: 'runner' });
+    await db
+      .insert(searchAreas)
+      .values({ runnerId, label: 'Ottawa', lat: 45.4, lng: -75.7, radiusKm: 5 });
+    await db
+      .insert(fitnessProfiles)
+      .values({ runnerId, vdot: 60, sourceActivityIds: [activityId] });
+    await db.insert(activities).values({
+      id: activityId,
+      runnerId,
+      name: 'Morning Run',
+      sportType: 'Run',
+      startDate: new Date('2026-09-01T10:00:00Z'),
+      distance: 5000,
+      movingTime: 1300,
+    });
+    await db.insert(segments).values({
+      id: segmentId,
+      name: 'Canal sprint',
+      distance: 400,
+      startLat: 45.4,
+      startLng: -75.7,
+    });
+    await db.insert(runnerSegments).values({ runnerId, segmentId, viaRun: true, effortCount: 1 });
+    await db.insert(segmentEfforts).values({
+      id: segmentId + 2,
+      runnerId,
+      activityId,
+      segmentId,
+      elapsedTime: 80,
+      startDate: new Date('2026-09-01T10:05:00Z'),
+    });
+    const [area] = await db
+      .insert(mappedAreas)
+      .values({ runnerId, label: 'Gatineau', lat: 45.5, lng: -75.9, radiusKm: 25 })
+      .returning();
+    const [crawl] = await db
+      .insert(crawls)
+      .values({ runnerId, mappedAreaId: area!.id, lat: 45.5, lng: -75.9, radiusKm: 25 })
+      .returning();
+    await db.insert(stravaJobs).values({
+      kind: 'segment-detail',
+      target: segmentId,
+      runnerId,
+      crawlId: crawl!.id,
+      priority: 1,
+    });
+    await db.insert(stravaReadUsage).values({
+      runnerId,
+      window: 'day',
+      windowStart: new Date('2026-09-29T00:00:00Z'),
+      reads: 3,
+    });
+  }
+
   it('returns 401 when signed out', async () => {
     const res = await disconnect();
     expect(res.statusCode).toBe(401);
@@ -331,6 +432,30 @@ describe('POST /api/auth/disconnect', () => {
       .map(([, init]) => init!.body as URLSearchParams);
     expect(refreshBody!.get('refresh_token')).toBe('refresh-1');
     expect(deauthorizeBody!.get('access_token')).toBe('access-2');
+  });
+
+  it('empties every per-Runner table and keeps the shared Segment', async () => {
+    const { runnerId, session } = await signInRunner();
+    const segmentId = 8_000_000_000 + Math.floor(Math.random() * 1_000_000) * 10;
+    await seedEverything(runnerId, segmentId);
+    const before = await perRunnerCounts(runnerId);
+    expect(Object.entries(before).filter(([, count]) => count !== 1)).toEqual([]);
+    // Every table that references runners is covered above.
+    const referencing = await db.execute<{ table_name: string }>(sql`
+      select distinct c.conrelid::regclass::text as table_name
+      from pg_constraint c
+      where c.contype = 'f' and c.confrelid = 'runners'::regclass
+      order by 1`);
+    expect(referencing.map((r) => r.table_name)).toEqual([...perRunnerTableNames].sort());
+    fetch.mockResolvedValueOnce(Response.json({}));
+
+    const res = await disconnect(session);
+
+    expect(res.statusCode).toBe(204);
+    const after = await perRunnerCounts(runnerId);
+    expect(Object.entries(after).filter(([, count]) => count !== 0)).toEqual([]);
+    expect(await db.$count(segments, eq(segments.id, segmentId))).toBe(1);
+    await db.delete(segments).where(eq(segments.id, segmentId));
   });
 
   it("still deletes the Runner's data when Strava's deauthorize fails", async () => {

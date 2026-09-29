@@ -71,11 +71,11 @@ describe('GET /api/fitness-profile', () => {
         seconds: 10800,
         source: 'runner',
       },
-      { runnerId: session.id, distance: '400m', seconds: 70, source: 'strava' },
+      { runnerId: session.id, distance: '400m', seconds: 70, source: 'generated' },
     ]);
     const profile = (await getProfile(session)).json<FitnessProfile>();
     expect(summary(profile)).toEqual([
-      { distance: '400m', seconds: 70, source: 'strava' },
+      { distance: '400m', seconds: 70, source: 'generated' },
       { distance: '10k', seconds: 2400, source: 'runner' },
     ]);
     expect(new Date(profile.benchmarks[0]!.updatedAt).getTime()).not.toBeNaN();
@@ -135,12 +135,18 @@ describe('PUT /api/fitness-profile', () => {
     const session = await signIn();
     const imported = new Date('2026-01-01T00:00:00Z');
     await db.insert(benchmarks).values([
-      { runnerId: session.id, distance: '1k', seconds: 190, source: 'strava', updatedAt: imported },
+      {
+        runnerId: session.id,
+        distance: '1k',
+        seconds: 190,
+        source: 'generated',
+        updatedAt: imported,
+      },
       {
         runnerId: session.id,
         distance: '5k',
         seconds: 1200,
-        source: 'strava',
+        source: 'generated',
         updatedAt: imported,
       },
     ]);
@@ -154,7 +160,7 @@ describe('PUT /api/fitness-profile', () => {
     expect(oneK).toEqual({
       distance: '1k',
       seconds: 190,
-      source: 'strava',
+      source: 'generated',
       updatedAt: imported.toISOString(),
     });
     expect(fiveK).toMatchObject({ distance: '5k', seconds: 1150, source: 'runner' });
@@ -164,7 +170,7 @@ describe('PUT /api/fitness-profile', () => {
   it('ignores a source sent by the Runner', async () => {
     const session = await signIn();
     const res = await putProfile(session, {
-      benchmarks: [{ distance: '5k', seconds: 1200, source: 'strava' }],
+      benchmarks: [{ distance: '5k', seconds: 1200, source: 'generated' }],
     });
     expect(summary(res.json())).toEqual([{ distance: '5k', seconds: 1200, source: 'runner' }]);
   });

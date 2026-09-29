@@ -9,7 +9,7 @@ import { json, signedIn, stubApi } from '../test/api';
 const saved: FitnessProfile = {
   benchmarks: [
     { distance: '1k', seconds: 222, source: 'runner', updatedAt: '2026-09-01T00:00:00.000Z' },
-    { distance: '5k', seconds: 1200, source: 'strava', updatedAt: '2026-09-01T00:00:00.000Z' },
+    { distance: '5k', seconds: 1200, source: 'generated', updatedAt: '2026-09-01T00:00:00.000Z' },
   ],
 };
 

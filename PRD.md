@@ -121,7 +121,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - a migration encrypts existing plain-text rows.
   - The live token store file is unchanged.
   - **Check:** inject/DB tests: the stored columns aren't the plain token; sign-in, refresh and disconnect still work; a wrong key fails clearly; the migration test round-trips an existing row.
-- [ ] **D2** Schema for the core, as in the spec's Data model:
+- [x] **D2** Schema for the core, as in the spec's Data model:
   - `runners` gains `record_gender`, `onboarded_at`, `activities_checked_at` and `resynced_at`;
   - `benchmarks.source` becomes `runner | generated` (migrate the old values), and gains `generated_seconds`;
   - new tables: `fitness_profiles`, `activities`, `segments` (shared, with a start lat/lng bounding-box index), `runner_segments`, `mapped_areas`, `crawls`, `strava_jobs`, `strava_read_usage`, `app_state`;

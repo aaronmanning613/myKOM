@@ -1,5 +1,9 @@
 /** Which record the Runner is ranked against: the KOM (men) or the QOM (women). */
-export type RecordGender = 'KOM' | 'QOM';
+export const RECORD_GENDERS = ['KOM', 'QOM'] as const;
+export type RecordGender = (typeof RECORD_GENDERS)[number];
+
+/** `segments.record_status`: whether a Segment has a usable Target Record for a gender. */
+export type RecordStatus = 'ok' | NoRecordStatus;
 
 /** Why a Segment has no Target Record for a gender (the non-`ok` `segments.record_status` values). */
 export type NoRecordStatus = 'hazardous' | 'missing' | 'unparseable';

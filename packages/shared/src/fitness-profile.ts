@@ -1,7 +1,10 @@
 import type { BenchmarkDistanceId } from './benchmarks.js';
 
-/** Where a Benchmark came from: entered by the Runner, or imported from Strava's best efforts. */
-export const BENCHMARK_SOURCES = ['runner', 'strava'] as const;
+/**
+ * Where a Benchmark's value came from: `runner` means the Runner entered it (pinned);
+ * `generated` means it follows the Fitness Profile generated from their runs.
+ */
+export const BENCHMARK_SOURCES = ['runner', 'generated'] as const;
 export type BenchmarkSource = (typeof BENCHMARK_SOURCES)[number];
 
 /** A Benchmark longer than this is a typo, not a run. */
