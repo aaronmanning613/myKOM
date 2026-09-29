@@ -68,6 +68,7 @@ const app = buildApp({
   sessionSecret: env.sessionSecret,
   testRoutes: env.testMode,
   liveTokenStore,
+  queue,
   tick: {
     tick: () => tick(),
     verifyToken: env.tickOidc && createGoogleOidcVerifier(env.tickOidc),

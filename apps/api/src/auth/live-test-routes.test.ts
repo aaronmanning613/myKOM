@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { runners, stravaTokens } from '../db/schema.js';
+import { createJobQueue } from '../jobs/queue.js';
 import {
   STRAVA_ATHLETE_URL,
   STRAVA_DEAUTHORIZE_URL,
@@ -82,6 +83,7 @@ function buildLiveApp() {
     tokenCipher: testTokenCipher,
     sessionSecret: TEST_SESSION_SECRET,
     liveTokenStore,
+    queue: createJobQueue(db, {}),
   });
   return { app, fetch };
 }

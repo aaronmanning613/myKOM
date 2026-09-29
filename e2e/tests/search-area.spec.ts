@@ -41,15 +41,15 @@ test('searches a postcode, picks a result, and the Search Area is restored after
     .getByRole('list', { name: 'Places found' })
     .getByRole('button', { name: 'LS1 4DY, Leeds, United Kingdom' })
     .click();
-  await page.getByText('25 km').click();
+  await page.getByText('2 km').click();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toHaveText('Search Area saved.');
 
   await page.reload();
   await expect(savedArea(page)).toHaveText(
-    'Your Search Area: 25 km around LS1 4DY, Leeds, United Kingdom',
+    'Your Search Area: 2 km around LS1 4DY, Leeds, United Kingdom',
   );
-  await expect(page.getByRole('radio', { name: '25 km' })).toBeChecked();
+  await expect(page.getByRole('radio', { name: '2 km' })).toBeChecked();
   await expect(page.getByRole('link', { name: 'OpenStreetMap contributors' })).toBeVisible();
 });
 
@@ -68,7 +68,7 @@ test.describe('with geolocation granted', () => {
     await expect(page.getByRole('status')).toHaveText('Search Area saved.');
 
     await page.reload();
-    await expect(savedArea(page)).toHaveText('Your Search Area: 10 km around My location');
+    await expect(savedArea(page)).toHaveText('Your Search Area: 5 km around My location');
   });
 });
 
@@ -92,7 +92,7 @@ test.describe('with geolocation denied', () => {
 
     await page.reload();
     await expect(savedArea(page)).toHaveText(
-      'Your Search Area: 10 km around Bristol, England, United Kingdom',
+      'Your Search Area: 5 km around Bristol, England, United Kingdom',
     );
   });
 });

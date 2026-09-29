@@ -10,6 +10,7 @@ export * from './polyline.js';
 export * from './predict.js';
 export * from './profile-generation.js';
 export * from './rank.js';
+export * from './results.js';
 export * from './search-area.js';
 export * from './target-record.js';
 export * from './time.js';

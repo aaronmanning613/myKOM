@@ -1,5 +1,5 @@
 // The Strava job queue: work sits in `strava_jobs` and is drained by requests and the tick.
-import { and, asc, desc, eq, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { STRAVA_JOB_KINDS, stravaJobs } from '../db/schema.js';
 import { StravaRateLimitError, StravaRevokedError, type StravaClient } from '../strava/client.js';
@@ -65,6 +65,12 @@ export type DrainOptions = {
   strava: StravaClient;
   /** How many jobs run at once. */
   concurrency?: number;
+  /** Runs only this Runner's jobs (a search's first burst). */
+  runnerId?: number;
+  /** Runs only jobs at this priority or above. */
+  minPriority?: JobPriority;
+  /** Claims at most this many jobs of each kind listed; unlisted kinds are unlimited. */
+  limits?: Partial<Record<JobKind, number>>;
 };
 
 export type DrainResult = {
@@ -115,9 +121,23 @@ export function createJobQueue(
 
   /**
    * Claims the most urgent runnable job (or one whose lease ran out), leaving out the given
-   * Runners' jobs, or returns undefined.
+   * Runners' jobs and kinds (and other Runners' jobs when `onlyRunner` is set, and jobs below
+   * `minPriority`), or returns undefined.
    */
-  async function claim(now: Date, skipRunners: number[]): Promise<Job | undefined> {
+  async function claim(
+    now: Date,
+    {
+      skipRunners,
+      skipKinds,
+      onlyRunner,
+      minPriority,
+    }: {
+      skipRunners: number[];
+      skipKinds: JobKind[];
+      onlyRunner?: number;
+      minPriority?: JobPriority;
+    },
+  ): Promise<Job | undefined> {
     const next = db
       .select({ id: stravaJobs.id })
       .from(stravaJobs)
@@ -126,6 +146,11 @@ export function createJobQueue(
           or(eq(stravaJobs.status, 'pending'), eq(stravaJobs.status, 'running')),
           lte(stravaJobs.notBefore, now),
           skipRunners.length > 0 ? notInArray(stravaJobs.runnerId, skipRunners) : undefined,
+          skipKinds.length > 0 ? notInArray(stravaJobs.kind, skipKinds) : undefined,
+          onlyRunner === undefined ? undefined : eq(stravaJobs.runnerId, onlyRunner),
+          minPriority === undefined
+            ? undefined
+            : gte(stravaJobs.priority, JOB_PRIORITY[minPriority]),
         ),
       )
       .orderBy(desc(stravaJobs.priority), asc(stravaJobs.id))
@@ -202,10 +227,21 @@ export function createJobQueue(
    * many it really used). Workers check and claim one at a time, so this drain's own workers
    * can't overshoot; overlapping drains can, by at most the reads they have running.
    */
-  async function drain({ deadline, now, strava, concurrency = 1 }: DrainOptions) {
+  async function drain({
+    deadline,
+    now,
+    strava,
+    concurrency = 1,
+    runnerId,
+    minPriority,
+    limits = {},
+  }: DrainOptions) {
     const result: DrainResult = { succeeded: 0, retried: 0, failed: 0, rateLimited: 0 };
     const context: JobContext = { db, strava, now, enqueue: (job) => enqueue(job, now()) };
     const inFlight = { total: 0, byRunner: new Map<number, number>() };
+    const claimed = new Map<JobKind, number>();
+    const kindsAtLimit = () =>
+      STRAVA_JOB_KINDS.filter((kind) => (claimed.get(kind) ?? 0) >= (limits[kind] ?? Infinity));
     const adjust = (runnerId: number, by: number) => {
       inFlight.total += by;
       inFlight.byRunner.set(runnerId, (inFlight.byRunner.get(runnerId) ?? 0) + by);
@@ -214,10 +250,20 @@ export function createJobQueue(
     function checkAndClaim(): Promise<Job | undefined> {
       const next = gate.then(async () => {
         if (now() >= deadline) return undefined;
+        const skipKinds = kindsAtLimit();
+        if (skipKinds.length === STRAVA_JOB_KINDS.length) return undefined;
         const budget = await checkBudget(db, now(), inFlight);
         if (budget.stopped) return undefined;
-        const job = await claim(now(), budget.blockedRunners);
-        if (job) adjust(job.runnerId, 1);
+        const job = await claim(now(), {
+          skipRunners: budget.blockedRunners,
+          skipKinds,
+          onlyRunner: runnerId,
+          minPriority,
+        });
+        if (job) {
+          adjust(job.runnerId, 1);
+          claimed.set(job.kind, (claimed.get(job.kind) ?? 0) + 1);
+        }
         return job;
       });
       gate = next.catch(() => undefined);

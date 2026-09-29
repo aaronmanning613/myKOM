@@ -11,6 +11,9 @@ import { createDbGeocodeCache } from '../geocode/cache.js';
 import { createNominatimClient } from '../geocode/nominatim.js';
 import { createThrottle } from '../geocode/throttle.js';
 import { recordRead } from '../jobs/budget.js';
+import { onCrawlJobFinished } from '../jobs/crawls.js';
+import { createStravaJobHandlers } from '../jobs/handlers.js';
+import { createJobQueue } from '../jobs/queue.js';
 import type { IpLocator } from '../locate-ip/locator.js';
 import { createStravaClient } from '../strava/client.js';
 import { createTokenCipher } from '../strava/token-cipher.js';
@@ -89,6 +92,9 @@ export function buildTestApp(
     onRevoked: (runnerId) => deleteRunner(database.db, runnerId),
     onRead: (read) => recordRead(database.db, read),
   });
+  const queue = createJobQueue(database.db, createStravaJobHandlers({ log: { warn: () => {} } }), {
+    onFinished: onCrawlJobFinished,
+  });
   const nominatimFetch = vi.fn<typeof globalThis.fetch>();
   const nominatim = createNominatimClient({
     userAgent: 'myKOM-tests',
@@ -107,8 +113,9 @@ export function buildTestApp(
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,
     tick,
+    queue,
   });
-  return { app, fetch, nominatimFetch, strava };
+  return { app, fetch, nominatimFetch, strava, queue };
 }
 
 /** A Strava athlete id unlikely to clash with other tests sharing the database. */

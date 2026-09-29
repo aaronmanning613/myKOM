@@ -1,9 +1,11 @@
 import {
+  DEFAULT_SEARCH_RADIUS_KM,
   SEARCH_RADII_KM,
   type GeocodeResponse,
   type GeocodeResult,
   type IpLocation,
   type LocateIpResponse,
+  type Results,
   type SearchArea,
   type SearchAreaResponse,
   type SearchRadiusKm,
@@ -13,9 +15,6 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 /** How long to wait for the browser's location before falling back to the IP lookup. */
 export const GEOLOCATION_TIMEOUT_MS = 10_000;
-
-// TODO(decision): the radius preselected before a Runner has saved a Search Area.
-const DEFAULT_RADIUS_KM: SearchRadiusKm = 10;
 
 // TODO(decision): a browser location has no place name; reverse geocoding could add one.
 export const MY_LOCATION_LABEL = 'My location';
@@ -78,7 +77,7 @@ export function SearchAreaPage() {
   const [load, setLoad] = useState<LoadState>('loading');
   const [saved, setSaved] = useState<SearchArea | null>(null);
   const [centre, setCentre] = useState<Centre | null>(null);
-  const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(DEFAULT_RADIUS_KM);
+  const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(DEFAULT_SEARCH_RADIUS_KM);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SearchState>({ kind: 'idle' });
   const [locate, setLocate] = useState<LocateState>({ kind: 'idle' });
@@ -165,12 +164,12 @@ export function SearchAreaPage() {
     const update: SearchAreaUpdate = { ...centre, radiusKm };
     setSave('saving');
     try {
-      const response = await fetch('/api/search-area', {
-        method: 'PUT',
+      const response = await fetch('/api/search', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(update),
       });
-      const { searchArea } = await readJson<SearchAreaResponse>(response, isSearchAreaResponse);
+      const { searchArea } = await readJson<Results>(response, isSearchAreaResponse);
       setSaved(searchArea);
       setSave('saved');
     } catch {

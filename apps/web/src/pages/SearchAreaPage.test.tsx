@@ -22,12 +22,12 @@ const leeds: LocateIpResponse = {
   },
 };
 
-/** Echoes a PUT back as the saved Search Area, recording each body sent. */
-function echoPut(bodies: SearchAreaUpdate[]) {
+/** Answers a search with the saved Search Area (and no Segments), recording each body sent. */
+function echoSearch(bodies: SearchAreaUpdate[]) {
   return (init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as SearchAreaUpdate;
     bodies.push(body);
-    return json({ searchArea: body });
+    return json({ searchArea: body, targets: [], nearestMisses: [], suspicious: [] });
   };
 }
 
@@ -63,14 +63,14 @@ const save = () => userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 describe('Search Area', () => {
   it('restores the saved Search Area', async () => {
-    const saved: SearchArea = { label: 'Leeds', lat: 53.8, lng: -1.55, radiusKm: 25 };
+    const saved: SearchArea = { label: 'Leeds', lat: 53.8, lng: -1.55, radiusKm: 2 };
     stubApi({ ...signedIn(), 'GET /api/search-area': () => json({ searchArea: saved }) });
     renderPage();
 
     expect(await screen.findByTestId('saved-search-area')).toHaveTextContent(
-      'Your Search Area: 25 km around Leeds',
+      'Your Search Area: 2 km around Leeds',
     );
-    expect(screen.getByRole('radio', { name: '25 km' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '2 km' })).toBeChecked();
     expect(screen.getByTestId('chosen-centre')).toHaveTextContent('Centre: Leeds');
   });
 
@@ -79,10 +79,10 @@ describe('Search Area', () => {
     renderPage();
 
     expect(await screen.findByText('You haven’t set a Search Area yet.')).toBeVisible();
-    for (const radius of [5, 10, 25, 50]) {
+    for (const radius of [1, 2, 5, 10]) {
       expect(screen.getByRole('radio', { name: `${radius} km` })).toBeInTheDocument();
     }
-    expect(screen.getByRole('radio', { name: '10 km' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '5 km' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(screen.getByRole('link', { name: 'OpenStreetMap contributors' })).toHaveAttribute(
       'href',
@@ -95,7 +95,7 @@ describe('Search Area', () => {
     const fetchMock = stubApi({
       ...signedIn(),
       'GET /api/geocode?q=SW1A+1AA': () => json({ results: places }),
-      'PUT /api/search-area': echoPut(bodies),
+      'POST /api/search': echoSearch(bodies),
     });
     renderPage();
 
@@ -106,13 +106,13 @@ describe('Search Area', () => {
 
     const found = await screen.findByRole('list', { name: 'Places found' });
     await userEvent.click(within(found).getByRole('button', { name: /^Buckingham Palace/ }));
-    await userEvent.click(screen.getByRole('radio', { name: '5 km' }));
+    await userEvent.click(screen.getByRole('radio', { name: '1 km' }));
     await save();
 
     expect(await screen.findByRole('status')).toHaveTextContent('Search Area saved.');
-    expect(bodies).toEqual([{ ...places[1], radiusKm: 5 }]);
+    expect(bodies).toEqual([{ ...places[1], radiusKm: 1 }]);
     expect(screen.getByTestId('saved-search-area')).toHaveTextContent(
-      'Your Search Area: 5 km around Buckingham Palace',
+      'Your Search Area: 1 km around Buckingham Palace',
     );
   });
 
@@ -135,7 +135,7 @@ describe('Search Area', () => {
 
   it('uses the browser location, with a finite timeout', async () => {
     const bodies: SearchAreaUpdate[] = [];
-    const fetchMock = stubApi({ ...signedIn(), 'PUT /api/search-area': echoPut(bodies) });
+    const fetchMock = stubApi({ ...signedIn(), 'POST /api/search': echoSearch(bodies) });
     const getCurrentPosition = stubGeolocation(grantedAt(51.45, -2.58));
     renderPage();
 
@@ -151,7 +151,7 @@ describe('Search Area', () => {
 
     await save();
     expect(await screen.findByRole('status')).toHaveTextContent('Search Area saved.');
-    expect(bodies).toEqual([{ label: 'My location', lat: 51.45, lng: -2.58, radiusKm: 10 }]);
+    expect(bodies).toEqual([{ label: 'My location', lat: 51.45, lng: -2.58, radiusKm: 5 }]);
   });
 
   it('falls back to the IP location when geolocation is denied, after confirmation', async () => {
@@ -159,7 +159,7 @@ describe('Search Area', () => {
     stubApi({
       ...signedIn(),
       'GET /api/locate-ip': () => json(leeds),
-      'PUT /api/search-area': echoPut(bodies),
+      'POST /api/search': echoSearch(bodies),
     });
     stubGeolocation(denied);
     renderPage();
@@ -178,7 +178,7 @@ describe('Search Area', () => {
     await save();
     expect(await screen.findByRole('status')).toHaveTextContent('Search Area saved.');
     expect(bodies).toEqual([
-      { label: 'Leeds, England, United Kingdom', lat: 53.8, lng: -1.55, radiusKm: 10 },
+      { label: 'Leeds, England, United Kingdom', lat: 53.8, lng: -1.55, radiusKm: 5 },
     ]);
   });
 
@@ -209,7 +209,7 @@ describe('Search Area', () => {
   });
 
   it('reports a failed save', async () => {
-    stubApi({ ...signedIn(), 'PUT /api/search-area': () => json({}, 500) });
+    stubApi({ ...signedIn(), 'POST /api/search': () => json({}, 500) });
     stubGeolocation(grantedAt(51.45, -2.58));
     renderPage();
 

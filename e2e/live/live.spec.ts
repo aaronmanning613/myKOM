@@ -59,14 +59,15 @@ test('the Search Area loads and saves for the real Runner', async ({ page }) => 
     .getByRole('list', { name: 'Places found' })
     .getByRole('button', { name: label })
     .click();
-  // By role, not text: a Search Area saved at 25 km by an earlier run also shows "25 km".
-  await page.getByRole('radio', { name: '25 km' }).check();
+  // By role, not text: a Search Area saved at 1 km by an earlier run also shows "1 km".
+  // Saving searches: the starred Segments read, plus any of the Runner's runs through Leeds.
+  await page.getByRole('radio', { name: '1 km' }).check();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toHaveText('Search Area saved.');
 
   await page.reload();
   await expect(page.getByTestId('saved-search-area')).toHaveText(
-    `Your Search Area: 25 km around ${label}`,
+    `Your Search Area: 1 km around ${label}`,
   );
 });
 

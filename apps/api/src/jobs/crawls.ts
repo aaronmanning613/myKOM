@@ -502,7 +502,7 @@ function cellsCrossed(points: LatLng[], area: CrawlArea): Set<number> {
 }
 
 /** A lat/lng box a little larger than the area, for index prefilters. */
-function boxAround(area: CrawlArea) {
+export function boxAround(area: CrawlArea) {
   const dLat = ((area.radiusKm * 1000) / METRES_PER_DEGREE_LAT) * 1.01;
   const dLng = dLat / Math.cos((area.lat * Math.PI) / 180);
   return {

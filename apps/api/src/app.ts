@@ -11,6 +11,7 @@ import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
 import { endSession, sessionRunnerId } from './auth/session.js';
 import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
+import type { JobQueue } from './jobs/queue.js';
 import { preferencesRoutes } from './preferences/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
@@ -46,6 +47,8 @@ export type BuildAppOptions = {
   liveTokenStore?: LiveTokenStore;
   /** Registers `POST /internal/tick`: the tick, and how its caller is checked. */
   tick?: TickRoutesOptions;
+  /** The Strava job queue that searches drain (the same one the tick drains). */
+  queue: JobQueue;
 };
 
 const VISIT_CHECK_SKIPS = [
@@ -73,6 +76,7 @@ export function buildApp({
   testRoutes: enableTestRoutes = false,
   liveTokenStore,
   tick,
+  queue,
 }: BuildAppOptions) {
   const app = Fastify({ logger, trustProxy });
   app.register(fastifyCookie, { secret: sessionSecret });
@@ -121,7 +125,7 @@ export function buildApp({
   app.register(fitnessProfileRoutes, { db: database.db, strava });
   app.register(syncRoutes, { db: database.db, strava });
   app.register(preferencesRoutes, { db: database.db });
-  app.register(searchAreaRoutes, { db: database.db });
+  app.register(searchAreaRoutes, { db: database.db, strava, queue });
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });
   if (tick) app.register(tickRoutes, tick);

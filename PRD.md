@@ -196,7 +196,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Search and results API (spec: Ranking, Known Segment gathering, API)
 
-- [ ] **X1** Search:
+- [x] **X1** Search:
   - Search Area radii become 1, 2, 5, 10 km (default 5);
   - `POST /api/search` replaces `PUT /api/search-area`: it saves the area, sets `onboarded_at` if unset, fetches starred Segments, starts a crawl (J4), drains a first burst (about 20 runs + 60 Segment details, 8 in parallel, within the budget), and returns the results payload;
   - `GET /api/search-area` is unchanged.

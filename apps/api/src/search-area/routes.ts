@@ -1,19 +1,26 @@
 import {
   MAX_SEARCH_AREA_LABEL_LENGTH,
   SEARCH_RADII_KM,
+  type Results,
   type SearchAreaResponse,
   type SearchAreaUpdate,
 } from '@mykom/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import { requireRunner } from '../auth/guard.js';
+import { endSession } from '../auth/session.js';
 import type { Database } from '../db/client.js';
-import { loadSearchArea, saveSearchArea } from './store.js';
+import type { JobQueue } from '../jobs/queue.js';
+import { search } from '../search/search.js';
+import type { StravaClient } from '../strava/client.js';
+import { loadSearchArea } from './store.js';
 
 export type SearchAreaRoutesOptions = {
   db: Database['db'];
+  strava: StravaClient;
+  queue: JobQueue;
 };
 
-const updateSchema = {
+const searchSchema = {
   type: 'object',
   required: ['label', 'lat', 'lng', 'radiusKm'],
   additionalProperties: false,
@@ -28,7 +35,7 @@ const updateSchema = {
 
 export const searchAreaRoutes: FastifyPluginAsync<SearchAreaRoutesOptions> = async (
   app,
-  { db },
+  { db, strava, queue },
 ) => {
   app.get('/api/search-area', async (request, reply) => {
     const runner = await requireRunner(db, request, reply);
@@ -37,15 +44,24 @@ export const searchAreaRoutes: FastifyPluginAsync<SearchAreaRoutesOptions> = asy
     return response;
   });
 
-  app.put<{ Body: SearchAreaUpdate }>(
-    '/api/search-area',
-    { schema: { body: updateSchema } },
+  // Saves the Search Area, starts gathering its Known Segments, and returns the first results.
+  app.post<{ Body: SearchAreaUpdate }>(
+    '/api/search',
+    { schema: { body: searchSchema } },
     async (request, reply) => {
       const runner = await requireRunner(db, request, reply);
       if (!runner) return reply;
-      await saveSearchArea(db, runner.id, { ...request.body, label: request.body.label.trim() });
-      const response: SearchAreaResponse = { searchArea: await loadSearchArea(db, runner.id) };
-      return response;
+      const results: Results | null = await search(
+        { db, strava, queue, log: request.log },
+        runner.id,
+        { ...request.body, label: request.body.label.trim() },
+      );
+      if (!results) {
+        // Deleted during the search: a job found their Strava access revoked.
+        endSession(request, reply);
+        return reply.code(401).send({ error: 'signed_out' });
+      }
+      return results;
     },
   );
 };
