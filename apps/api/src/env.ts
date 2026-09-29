@@ -17,8 +17,16 @@ export const DEV_SESSION_SECRET = 'mykom-dev-only-session-secret-do-not-use-in-p
 /** Encrypts Strava tokens outside production when TOKEN_ENCRYPTION_KEY isn't set. Never used in production. */
 export const DEV_TOKEN_ENCRYPTION_KEY = Buffer.from('mykom-dev-only-token-key-32bytes', 'utf8');
 
+/**
+ * Production has no fallbacks for these (SESSION_SECRET and TOKEN_ENCRYPTION_KEY are checked
+ * with their formats below).
+ */
+const PRODUCTION_REQUIRED = ['DATABASE_URL', 'STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET'] as const;
+
 export type Env = {
+  /** API_HOST; in production every interface unless set. */
   host: string;
+  /** API_PORT; in production Cloud Run's PORT wins. */
   port: number;
   databaseUrl: string;
   sessionSecret: string;
@@ -64,9 +72,17 @@ export function loadRootEnvFile(path: string = rootEnvPath): void {
 }
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const port = Number(source.API_PORT ?? 3001);
+  const production = source.NODE_ENV === 'production';
+  // Cloud Run says which port to listen on in PORT, and needs every interface.
+  const portVariable = production && source.PORT ? 'PORT' : 'API_PORT';
+  const port = Number(source[portVariable] ?? 3001);
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error(`API_PORT must be a valid port number, got "${source.API_PORT}"`);
+    throw new Error(`${portVariable} must be a valid port number, got "${source[portVariable]}"`);
+  }
+  if (production) {
+    for (const name of PRODUCTION_REQUIRED) {
+      if (!source[name]?.trim()) throw new Error(`${name} must be set in production`);
+    }
   }
   const sessionSecret = source.SESSION_SECRET || DEV_SESSION_SECRET;
   if (source.NODE_ENV === 'production' && sessionSecret === DEV_SESSION_SECRET) {
@@ -83,7 +99,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error('E2E_LIVE=1 can’t be combined with test mode (NODE_ENV=test or E2E=1)');
   }
   return {
-    host: source.API_HOST ?? '127.0.0.1',
+    host: source.API_HOST ?? (production ? '0.0.0.0' : '127.0.0.1'),
     port,
     databaseUrl: source.DATABASE_URL || DEFAULT_DATABASE_URL,
     sessionSecret,

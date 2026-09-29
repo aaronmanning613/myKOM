@@ -21,6 +21,7 @@ import type { LiveTokenStore } from './strava/live-token-store.js';
 import type { TokenCipher } from './strava/token-cipher.js';
 import { visitCheck } from './sync/new-runs.js';
 import { syncRoutes } from './sync/routes.js';
+import { serveWebApp } from './web/static-routes.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
@@ -58,6 +59,11 @@ export type BuildAppOptions = {
   tick?: TickRoutesOptions;
   /** The Strava job queue that searches drain (the same one the tick drains). */
   queue: JobQueue;
+  /**
+   * The built web app's directory, served at `/` with a fallback to index.html for client
+   * routes (production). Unset, only the API is served; in development Vite serves the web app.
+   */
+  webRoot?: string;
 };
 
 const VISIT_CHECK_SKIPS = [
@@ -88,6 +94,7 @@ export function buildApp({
   liveTokenStore,
   tick,
   queue,
+  webRoot,
 }: BuildAppOptions) {
   const app = Fastify({ logger, trustProxy });
   app.register(fastifyCookie, { secret: sessionSecret });
@@ -146,6 +153,7 @@ export function buildApp({
   if (liveTokenStore) {
     app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore, tokenCipher });
   }
+  if (webRoot) serveWebApp(app, webRoot);
 
   return app;
 }

@@ -1,0 +1,16 @@
+# Keep secrets, local state and build output out of the image's build context.
+.env
+.env.*
+.strava-live-token.json
+.git
+**/node_modules
+**/dist
+data
+coverage
+ralph-logs
+.playwright-mcp
+.claude
+.agents
+playwright-report
+test-results
+e2e/test-results

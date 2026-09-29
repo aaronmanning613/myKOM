@@ -18,8 +18,11 @@ const KEY_BASE64 = Buffer.alloc(32, 7).toString('base64');
 /** The secrets production requires. */
 const PRODUCTION = {
   NODE_ENV: 'production',
+  DATABASE_URL: 'postgres://x@db/y',
   SESSION_SECRET: 's'.repeat(32),
   TOKEN_ENCRYPTION_KEY: KEY_BASE64,
+  STRAVA_CLIENT_ID: '123',
+  STRAVA_CLIENT_SECRET: 'shh',
 };
 
 describe('readEnv', () => {
@@ -139,8 +142,32 @@ describe('readEnv', () => {
     expect(() => readEnv({ API_PORT: 'abc' })).toThrow(/API_PORT/);
   });
 
+  it.each(['DATABASE_URL', 'STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET'])(
+    'requires %s in production',
+    (name) => {
+      expect(() => readEnv({ ...PRODUCTION, [name]: ' ' })).toThrow(`${name} must be set`);
+      expect(() => readEnv({ ...PRODUCTION, [name]: undefined })).toThrow(`${name} must be set`);
+    },
+  );
+
+  it('listens on every interface at PORT in production', () => {
+    expect(readEnv({ ...PRODUCTION, PORT: '8080', API_PORT: '4000' })).toMatchObject({
+      host: '0.0.0.0',
+      port: 8080,
+    });
+    expect(readEnv({ ...PRODUCTION, API_HOST: '127.0.0.1' })).toMatchObject({
+      host: '127.0.0.1',
+      port: 3001,
+    });
+    expect(() => readEnv({ ...PRODUCTION, PORT: 'x' })).toThrow(/PORT must be a valid port/);
+  });
+
+  it('ignores PORT outside production', () => {
+    expect(readEnv({ PORT: '8080' })).toMatchObject({ host: '127.0.0.1', port: 3001 });
+  });
+
   it('requires SESSION_SECRET in production', () => {
-    expect(() => readEnv({ NODE_ENV: 'production' })).toThrow(/SESSION_SECRET/);
+    expect(() => readEnv({ ...PRODUCTION, SESSION_SECRET: undefined })).toThrow(/SESSION_SECRET/);
   });
 
   it('rejects a short SESSION_SECRET', () => {

@@ -75,6 +75,7 @@ export function buildTestApp(
     ipFallback,
     trustProxy,
     tick,
+    webRoot,
   }: {
     testRoutes?: boolean;
     debugRoutes?: boolean;
@@ -85,6 +86,7 @@ export function buildTestApp(
     ipFallback?: boolean;
     trustProxy?: BuildAppOptions['trustProxy'];
     tick?: BuildAppOptions['tick'];
+    webRoot?: string;
   } = {},
 ) {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -120,6 +122,7 @@ export function buildTestApp(
     debugRoutes,
     tick,
     queue,
+    webRoot,
   });
   return { app, fetch, nominatimFetch, strava, queue };
 }

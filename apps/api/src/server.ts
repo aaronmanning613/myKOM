@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { TICK_INTERVAL_MINUTES } from '@mykom/shared';
 import { buildApp } from './app.js';
 import { deleteRunner } from './auth/runners.js';
@@ -8,7 +9,7 @@ import { createStravaJobHandlers } from './jobs/handlers.js';
 import { createJobQueue } from './jobs/queue.js';
 import { createTick } from './jobs/tick.js';
 import { createGoogleOidcVerifier } from './internal/google-oidc.js';
-import { loadRootEnvFile, readEnv, usesDevTokenEncryptionKey } from './env.js';
+import { loadRootEnvFile, readEnv, repoRoot, usesDevTokenEncryptionKey } from './env.js';
 import { createDbGeocodeCache } from './geocode/cache.js';
 import { createNominatimClient } from './geocode/nominatim.js';
 import { openIpLocator, type IpLocator } from './locate-ip/locator.js';
@@ -73,6 +74,8 @@ const app = buildApp({
   debugRoutes: !env.production,
   liveTokenStore,
   queue,
+  // One image, one origin: production serves the built web app too.
+  webRoot: env.production ? resolve(repoRoot, 'apps/web/dist') : undefined,
   tick: {
     tick: () => tick(),
     verifyToken: env.tickOidc && createGoogleOidcVerifier(env.tickOidc),
