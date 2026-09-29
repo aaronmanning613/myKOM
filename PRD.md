@@ -242,7 +242,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - with < 2 Benchmarks, a prompt linking to the Fitness Profile.
   - Delete the results prototype files and route.
   - **Check:** component tests over fixture payloads (including a slow Runner with Nearest misses) plus e2e with a seeded area.
-- [ ] **U5** The first-run wizard and routing:
+- [x] **U5** The first-run wizard and routing:
   - a three-step wizard with a step bar;
   - step 1: reading runs, the sentence, the table, and a KOM/QOM question only when `sex` is unset; continue is disabled until ≥ 2 Benchmarks exist;
   - step 2: the Search Area form + **Find my targets**;

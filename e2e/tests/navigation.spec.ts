@@ -25,7 +25,7 @@ for (const viewport of viewports) {
 
     test('reaches every route via the nav', async ({ page }) => {
       await signIn(page, 'Faith');
-      await page.goto('/');
+      await page.goto('/results');
       const nav = page.getByRole('navigation', { name: 'Main' });
 
       for (const { link, path, heading } of pages) {
@@ -35,8 +35,9 @@ for (const viewport of viewports) {
         await expect(nav.getByRole('link', { name: link })).toHaveAttribute('aria-current', 'page');
       }
 
+      // Faith hasn't finished the wizard, so home is the wizard.
       await page.getByRole('link', { name: 'myKOM' }).click();
-      await expect(page).toHaveURL('/');
+      await expect(page).toHaveURL('/welcome');
       expect(await overflows(page)).toBe(false);
     });
 

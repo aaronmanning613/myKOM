@@ -337,9 +337,26 @@ describe('GET /api/me', () => {
       id: expect.any(Number),
       firstName: 'Paula',
       avatarUrl: 'https://example.com/paula.jpg',
+      sex: 'F',
+      recordGender: null,
       onboarded: false,
       suggestion: null,
     });
+  });
+
+  it('reports the KOM/QOM preference of a Runner with no sex set', async () => {
+    const athleteId = randomAthleteId();
+    const { session } = await signIn(athleteId);
+    await db
+      .update(runners)
+      .set({ sex: null, recordGender: 'QOM' })
+      .where(eq(runners.stravaAthleteId, athleteId));
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      cookies: { [SESSION_COOKIE]: session!.value },
+    });
+    expect(res.json()).toMatchObject({ sex: null, recordGender: 'QOM' });
   });
 
   it('returns 401 and clears the session once the Runner no longer exists', async () => {

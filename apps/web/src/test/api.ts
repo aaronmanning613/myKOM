@@ -8,6 +8,8 @@ export const testRunner: Me = {
   id: 1,
   firstName: 'Paula',
   avatarUrl: 'https://example.com/paula.jpg',
+  sex: 'F',
+  recordGender: null,
   onboarded: true,
   suggestion: null,
 };

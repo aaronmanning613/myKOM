@@ -106,6 +106,8 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
       id: runner.id,
       firstName: runner.firstName,
       avatarUrl: runner.avatarUrl,
+      sex: runner.sex,
+      recordGender: runner.recordGender,
       onboarded: runner.onboardedAt !== null,
       suggestion: await loadSuggestionSummary(db, runner.id),
     };

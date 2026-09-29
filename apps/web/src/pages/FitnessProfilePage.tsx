@@ -1,7 +1,8 @@
-import { formatTime, type FitnessProfile, type ProfileGeneration } from '@mykom/shared';
+import type { FitnessProfile } from '@mykom/shared';
 import { useEffect, useState } from 'react';
 import { fitnessProfileApi } from '../fitness-profile/api';
 import { BenchmarkTable } from '../fitness-profile/BenchmarkTable';
+import { EstimatedFrom } from '../fitness-profile/EstimatedFrom';
 import { useSuggestions } from '../fitness-profile/suggestion';
 
 type LoadState =
@@ -10,11 +11,6 @@ type Action = 'regenerate' | 'resync';
 type ActionState =
   { kind: 'idle' } | { kind: 'busy'; action: Action } | { kind: 'failed'; action: Action };
 
-const dateFormat = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
 const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
@@ -22,41 +18,6 @@ const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-/** "Estimated from …": the runs the applied generation came from, or why there's none. */
-function EstimatedFrom({ profile }: { profile: FitnessProfile }) {
-  const generation: ProfileGeneration | null = profile.generation;
-  if (!generation) {
-    return (
-      <p className="mt-2 text-gray-700">
-        We didn’t find any race-like runs in your last 3 years, so there’s nothing to estimate your
-        Benchmarks from.
-        {profile.benchmarks.length < 2 && ' Enter at least two times you could run today.'}
-      </p>
-    );
-  }
-  if (generation.sources.length === 0) {
-    return (
-      <p className="mt-2 text-gray-700">
-        Estimated from runs you’ve since removed from Strava. Change anything that looks off.
-      </p>
-    );
-  }
-  return (
-    <p className="mt-2 text-gray-700">
-      Estimated from{' '}
-      {generation.sources.map((run, i) => (
-        <span key={run.activityId}>
-          {i > 0 && ' and '}
-          <strong>{run.name || 'a run'}</strong> ({formatTime(run.movingTime)},{' '}
-          {dateFormat.format(new Date(run.startDate))})
-        </span>
-      ))}
-      {generation.sources.length === 1 && ', your only race-like run'}. Change anything that looks
-      off.
-    </p>
-  );
-}
 
 /** What a pending suggestion would change, above the table that shows its values. */
 function SuggestionNote({ profile }: { profile: FitnessProfile }) {

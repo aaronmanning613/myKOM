@@ -82,12 +82,12 @@ describe('signed in', () => {
     expect(header().querySelector('img')).toBeNull();
   });
 
-  it('sends the login page to home', async () => {
+  it('sends the login page on to Results for an onboarded Runner', async () => {
     stubApi(signedIn());
     const router = renderAt('/login');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'myKOM' })).toBeVisible();
-    expect(router.state.location.pathname).toBe('/');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Results' })).toBeVisible();
+    expect(router.state.location.pathname).toBe('/results');
   });
 
   it('logs out and returns to the login page', async () => {

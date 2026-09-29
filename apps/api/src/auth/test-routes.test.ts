@@ -39,6 +39,8 @@ describe('POST /api/test/login', () => {
       id: expect.any(Number),
       firstName: 'Eliud',
       avatarUrl: null,
+      sex: null,
+      recordGender: null,
       onboarded: false,
       suggestion: null,
     });
@@ -64,6 +66,17 @@ describe('POST /api/test/login', () => {
 
     expect(first.firstName).toBe('Test');
     expect(second.id).not.toBe(first.id);
+    await app.close();
+  });
+
+  it('can set Strava sex', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const res = await app.inject({ method: 'POST', url: '/api/test/login', payload: { sex: 'F' } });
+    const me = res.json<Me>();
+    runnerIds.push(me.id);
+    expect(me.sex).toBe('F');
+    const [runner] = await db.select().from(runners).where(eq(runners.id, me.id));
+    expect(runner!.sex).toBe('F');
     await app.close();
   });
 });

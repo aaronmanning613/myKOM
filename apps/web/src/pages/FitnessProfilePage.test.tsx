@@ -147,7 +147,7 @@ describe('Fitness Profile', () => {
 
     expect(
       await screen.findByText(
-        /didn’t find any race-like runs in your last 3 years.*Enter at least two times/,
+        /didn’t find any race-like runs in your last 3 years.*Enter one time you could run today/,
       ),
     ).toBeVisible();
     expect(

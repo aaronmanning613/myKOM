@@ -22,7 +22,8 @@ export type TestRoutesOptions = {
   tokenCipher: TokenCipher;
 };
 
-type TestLoginBody = { firstName?: string } | undefined;
+/** `sex` is Strava's (unset by default, so the wizard asks for KOM or QOM). */
+type TestLoginBody = { firstName?: string; sex?: 'M' | 'F' } | undefined;
 
 /** A run to store as if the activity list had returned it: metres, seconds, days before now. */
 type TestRun = { name: string; distance: number; movingTime: number; daysAgo: number };
@@ -117,6 +118,7 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
   // Creates a new Runner with placeholder Strava tokens and signs them in.
   app.post<{ Body: TestLoginBody }>('/api/test/login', async (request, reply) => {
     const firstName = request.body?.firstName || 'Test';
+    const sex = request.body?.sex === 'M' || request.body?.sex === 'F' ? request.body.sex : null;
     const runnerId = await upsertRunnerFromStrava(
       db,
       tokenCipher,
@@ -128,7 +130,7 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
         athlete: {
           id: randomInt(1, 2 ** 47),
           firstName,
-          sex: null,
+          sex,
           avatarUrl: null,
           isSubscriber: false,
         },
@@ -142,7 +144,15 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
       .set({ activitiesCheckedAt: new Date() })
       .where(eq(runners.id, runnerId));
     startSession(request, reply, runnerId);
-    const me: Me = { id: runnerId, firstName, avatarUrl: null, onboarded: false, suggestion: null };
+    const me: Me = {
+      id: runnerId,
+      firstName,
+      avatarUrl: null,
+      sex,
+      recordGender: null,
+      onboarded: false,
+      suggestion: null,
+    };
     return me;
   });
 

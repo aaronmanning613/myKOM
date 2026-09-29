@@ -75,6 +75,8 @@ export const liveTestRoutes: FastifyPluginAsync<LiveTestRoutesOptions> = async (
       id: runnerId,
       firstName: athlete.firstName,
       avatarUrl: athlete.avatarUrl,
+      sex: athlete.sex,
+      recordGender: runner?.recordGender ?? null,
       onboarded: runner?.onboardedAt != null,
       suggestion: await loadSuggestionSummary(db, runnerId),
     };

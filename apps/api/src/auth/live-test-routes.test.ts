@@ -120,6 +120,8 @@ describe('POST /api/test/login-live', () => {
       id: expect.any(Number),
       firstName: 'Faith',
       avatarUrl: 'https://example.com/faith.jpg',
+      sex: 'F',
+      recordGender: null,
       onboarded: false,
       suggestion: null,
     });

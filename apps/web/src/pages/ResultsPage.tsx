@@ -18,7 +18,8 @@ type LoadState =
   | { kind: 'ready'; results: Results };
 
 /** Keeps polling while the search's work is pending, unless it waits for tomorrow's budget. */
-const shouldPoll = (results: Results) => results.pending && !results.budget.continuesTomorrow;
+export const shouldPoll = (results: Results) =>
+  results.pending && !results.budget.continuesTomorrow;
 
 export function ResultsPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
