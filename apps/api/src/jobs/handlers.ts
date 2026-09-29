@@ -1,19 +1,16 @@
 // The Strava job handlers: what each kind of job reads from Strava and stores.
 import { recordFor, RECORD_GENDERS } from '@mykom/shared';
 import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
-import type { Database } from '../db/client.js';
 import { activities, runnerSegments, segmentEfforts, segments } from '../db/schema.js';
 import { STRAVA_PAGE_SIZE, type StravaSegmentSummary } from '../strava/client.js';
 import {
   JOB_PRIORITY,
+  type Db,
   type Job,
   type JobHandler,
   type JobHandlers,
   type JobPriority,
 } from './queue.js';
-
-/** The database, or a transaction on it. */
-type Db = Database['db'] | Parameters<Parameters<Database['db']['transaction']>[0]>[0];
 
 /** Where handlers write warnings (pino-compatible, e.g. Fastify's `app.log`). */
 export type JobLogger = { warn: (details: object, message: string) => void };

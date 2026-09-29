@@ -67,7 +67,10 @@ export type RankResult = {
 const EARTH_RADIUS_KM = 6371.0088;
 
 /** Great-circle (haversine) distance in km. */
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+export function distanceKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
   const rad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * rad;
   const dLng = (b.lng - a.lng) * rad;

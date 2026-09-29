@@ -42,6 +42,13 @@ export type JobContext = {
 export type JobHandler = (job: Job, context: JobContext) => Promise<void>;
 export type JobHandlers = Partial<Record<JobKind, JobHandler>>;
 
+/** Called once a job is finished for good: done, or failed past the attempt limit. */
+export type JobFinishedHook = (
+  job: Job,
+  outcome: 'done' | 'failed',
+  context: JobContext,
+) => Promise<void>;
+
 export type NewJob = {
   kind: JobKind;
   /** The activity or Segment id (or the page), depending on the kind. */
@@ -68,30 +75,42 @@ export type DrainResult = {
   rateLimited: number;
 };
 
+/** The database, or a transaction on it. */
+export type Db = Database['db'] | Parameters<Parameters<Database['db']['transaction']>[0]>[0];
+
+/**
+ * Adds a pending job. An identical pending job (same kind, Runner and target) isn't
+ * duplicated: it keeps its place, takes the higher of the two priorities, and gains the crawl
+ * link if it had none. Returns the pending job's id.
+ */
+export async function enqueueJob(db: Db, job: NewJob, now = new Date()): Promise<number> {
+  const target = job.target ?? null;
+  const crawlId = job.crawlId ?? null;
+  const [row] = await db.execute<{ id: number }>(sql`
+    insert into ${stravaJobs} (kind, target, runner_id, crawl_id, priority, not_before)
+    values (${job.kind}, ${target}, ${job.runnerId}, ${crawlId}, ${JOB_PRIORITY[job.priority]},
+      ${now.toISOString()}::timestamptz)
+    on conflict (kind, runner_id, coalesce(target, -1)) where status = 'pending'
+    do update set
+      priority = greatest(${stravaJobs}.priority, excluded.priority),
+      crawl_id = coalesce(${stravaJobs}.crawl_id, excluded.crawl_id),
+      updated_at = now()
+    returning id`);
+  return row!.id;
+}
+
 /**
  * The queue, with its handlers registered by kind. A job whose kind has no handler fails
- * straight away.
+ * straight away. `onFinished` hears about every job that is done or has failed for good.
  */
-export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
-  /**
-   * Adds a pending job. An identical pending job (same kind, Runner and target) isn't
-   * duplicated: it keeps its place, takes the higher of the two priorities, and gains the
-   * crawl link if it had none. Returns the pending job's id.
-   */
-  async function enqueue(job: NewJob, now = new Date()): Promise<number> {
-    const target = job.target ?? null;
-    const crawlId = job.crawlId ?? null;
-    const [row] = await db.execute<{ id: number }>(sql`
-      insert into ${stravaJobs} (kind, target, runner_id, crawl_id, priority, not_before)
-      values (${job.kind}, ${target}, ${job.runnerId}, ${crawlId}, ${JOB_PRIORITY[job.priority]},
-        ${now.toISOString()}::timestamptz)
-      on conflict (kind, runner_id, coalesce(target, -1)) where status = 'pending'
-      do update set
-        priority = greatest(${stravaJobs}.priority, excluded.priority),
-        crawl_id = coalesce(${stravaJobs}.crawl_id, excluded.crawl_id),
-        updated_at = now()
-      returning id`);
-    return row!.id;
+export function createJobQueue(
+  db: Database['db'],
+  handlers: JobHandlers,
+  { onFinished }: { onFinished?: JobFinishedHook } = {},
+) {
+  /** Adds a pending job (see enqueueJob). */
+  function enqueue(job: NewJob, now = new Date()): Promise<number> {
+    return enqueueJob(db, job, now);
   }
 
   /**
@@ -161,12 +180,14 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
         .update(stravaJobs)
         .set({ status: 'failed', lastError, finishedAt: now })
         .where(eq(stravaJobs.id, job.id));
+      await onFinished?.(job, 'failed', context);
       return 'failed';
     }
     await db
       .update(stravaJobs)
       .set({ status: 'done', lastError: null, finishedAt: context.now() })
       .where(eq(stravaJobs.id, job.id));
+    await onFinished?.(job, 'done', context);
     return 'succeeded';
   }
 

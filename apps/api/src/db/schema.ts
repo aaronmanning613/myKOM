@@ -279,6 +279,9 @@ export const mappedAreas = pgTable(
 );
 
 export const CRAWL_STATUSES = ['running', 'paused', 'done'] as const;
+// Why a crawl stopped fetching runs: the "last 10 runs" rule, the coverage rule, or every
+// planned run was fetched.
+export const CRAWL_STOP_REASONS = ['few-new-segments', 'coverage', 'all-runs'] as const;
 
 // Known Segment gathering for one search or Mapped Area: its progress and stop-rule state.
 export const crawls = pgTable(
@@ -304,15 +307,46 @@ export const crawls = pgTable(
     segmentsChecked: integer('segments_checked').notNull().default(0),
     // The share of the area's ~100 m grid cells crossed by the runs checked (0-1).
     coverage: doublePrecision('coverage').notNull().default(0),
+    // The area's grid cells crossed by any candidate run, and those crossed by the runs checked.
+    cellsTotal: integer('cells_total').notNull().default(0),
+    cellsCovered: integer('cells_covered').notNull().default(0),
     // New Segments added by each run checked, oldest first, for the "last 10 runs" stop rule.
     recentNewSegments: integer('recent_new_segments')
       .array()
       .notNull()
       .default(sql`'{}'`),
+    // When the crawl stopped fetching runs, and why.
+    runsFinishedAt: timestamp('runs_finished_at', { withTimezone: true }),
+    stopReason: text('stop_reason', { enum: CRAWL_STOP_REASONS }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [index('crawls_runner_idx').on(table.runnerId)],
+);
+
+// A crawl's plan: the runs through its area whose details it still needed, in the order it
+// fetches them (most new ground first).
+export const crawlRuns = pgTable(
+  'crawl_runs',
+  {
+    crawlId: integer('crawl_id')
+      .notNull()
+      .references(() => crawls.id, { onDelete: 'cascade' }),
+    activityId: bigint('activity_id', { mode: 'number' })
+      .notNull()
+      .references(() => activities.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    // The grid cells this run adds to those covered by the runs before it in the plan.
+    newCells: integer('new_cells').notNull(),
+    queuedAt: timestamp('queued_at', { withTimezone: true }),
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+    // The Segments in the area this run added (set when checked).
+    newSegments: integer('new_segments'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.crawlId, table.activityId] }),
+    index('crawl_runs_activity_idx').on(table.activityId),
+  ],
 );
 
 export const STRAVA_JOB_KINDS = [

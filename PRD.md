@@ -156,7 +156,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - **Segment detail:** fill the shared `segments` row, `record_status` (with a log line for `unparseable`, including the raw string), `athlete_count` and geometry; take the PB from `athlete_segment_stats` when faster;
   - **starred:** upsert `runner_segments` via starred.
   - **Check:** seam-2 tests with fixture responses for each handler, including "I just took it" and a starred-never-run Segment.
-- [ ] **J4** Crawls (spec: Known Segment gathering):
+- [x] **J4** Crawls (spec: Known Segment gathering):
   - for a centre + radius, select the Runner's stored activities whose polyline passes through the area (bbox prefilter, then decoded polyline);
   - order greedily by new ground (about 100 m grid cells), newest first on ties;
   - enqueue run details progressively;
