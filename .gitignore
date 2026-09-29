@@ -3,3 +3,12 @@
 !.env.example
 .claude/worktrees/
 node_modules/
+dist/
+data/
+coverage/
+.playwright-mcp/
+playwright-report/
+test-results/
+ralph-logs/
+__pycache__/
+.strava-live-token.json

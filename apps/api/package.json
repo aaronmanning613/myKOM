@@ -1,0 +1,32 @@
+{
+  "name": "@mykom/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --conditions=mykom-dist dist/server.js",
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "strava:authorize": "tsx src/strava/live-authorize-cli.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@maxmind/geoip2-node": "^7.1.0",
+    "@mykom/shared": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "fastify": "^5.12.5",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

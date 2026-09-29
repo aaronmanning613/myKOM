@@ -1,0 +1,17 @@
+{
+  "name": "@mykom/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test -c playwright.live.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@mykom/shared": "workspace:*",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
+    "typescript": "~6.0.3"
+  }
+}

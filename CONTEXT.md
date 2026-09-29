@@ -11,11 +11,11 @@ A Strava athlete who has connected their account to myKOM. Running is the only s
 _Avoid_: User, athlete (when meaning the myKOM user)
 
 **Benchmark**:
-The Runner's time for one standard distance (the set Strava calculates best efforts for, e.g. 400m, 1k, 1 mile, 5k, 10k).
+The Runner's time for one standard distance, from a fixed set running from 400m to the marathon.
 _Avoid_: PR, PB (those are per-Segment)
 
 **Fitness Profile**:
-The Runner's current set of Benchmarks. Defaults to lifetime best efforts from Strava; the Runner may override any Benchmark by their own judgement.
+The Runner's current set of Benchmarks. Defaults to times generated from the Runner's best recent race-like runs (the last 3 years); the Runner may override any Benchmark by their own judgement.
 _Avoid_: Fitness score, current fitness
 
 **Segment PB**:
@@ -27,7 +27,7 @@ The Runner's own fastest time on a particular Segment.
 A Strava-defined stretch of route with its own leaderboard. Only running segments are relevant.
 
 **Known Segment**:
-A Segment the Runner has already run. The only Segments myKOM ranks.
+A Segment the Runner has already run or has starred on Strava. The only Segments myKOM ranks.
 _Avoid_: Nearby segment, local segment
 
 **Target Record**:
@@ -37,8 +37,14 @@ _Avoid_: KOM (when gender-neutral), CR, course record
 **Predicted Time**:
 The time the Runner's Fitness Profile suggests they could run a given Segment in, accounting for its distance and elevation.
 
+**Prediction Confidence**:
+How far to trust a Predicted Time: high or low. Low when the prediction stretches beyond what the Fitness Profile or the Segment's data can support; high when the Runner's Segment PB backs it.
+
 **Achievable**:
 A Segment whose Predicted Time is within the Runner's chosen margin of its Target Record.
+
+**Nearest Miss**:
+A Segment that is not Achievable but is among the closest to it, shown when the Runner has few Achievable Segments.
 
 **Impressiveness**:
 How much taking a Segment's Target Record means, measured by how many athletes have run the Segment.
@@ -52,3 +58,6 @@ A Segment whose Target Record the Runner already holds. Shown with a crown, not 
 
 **Search Area**:
 A centre point (from a place name, postcode, or the Runner's location) plus a radius chosen from a fixed set. It narrows the Runner's Known Segments; it does not find new ones.
+
+**Mapped Area**:
+A large area (such as a whole city) the Runner has asked myKOM to fill in gradually in the background, so its Known Segments are ready before any Search Area inside it is searched.

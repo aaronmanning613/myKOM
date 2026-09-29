@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(E2E_LIVE=1 pnpm:*)",
+      "Bash(NODE_ENV=test pnpm:*)",
+      "Bash(E2E=1 pnpm:*)",
+      "Bash(corepack:*)",
+      "Bash(node:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl http://localhost:*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh issue view:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(sleep:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)",
+      "mcp__playwright",
+      "Bash(npx playwright:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git clean:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)",
+      "Read(./.strava-live-token.json)",
+      "Bash(cat .env:*)",
+      "Bash(cat .strava-live-token.json:*)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
+}

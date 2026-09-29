@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM types for callbacks that run in the page, e.g. `page.evaluate`.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["tests", "live", "*.ts"]
+}

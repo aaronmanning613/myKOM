@@ -1,0 +1,34 @@
+{
+  "name": "mykom",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --if-present dev",
+    "dev:live": "E2E_LIVE=1 DATABASE_URL=postgres://mykom:mykom@localhost:5433/mykom_e2e_live pnpm -r --parallel --if-present dev",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter @mykom/e2e test:e2e",
+    "test:e2e:live": "pnpm --filter @mykom/e2e test:e2e:live",
+    "test:live": "pnpm --filter @mykom/api test:live",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm -r --if-present db:generate",
+    "db:migrate": "pnpm -r --if-present db:migrate",
+    "geolite2:update": "node scripts/update-geolite2.mjs",
+    "strava:authorize": "pnpm --filter @mykom/api strava:authorize"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
+  }
+}
