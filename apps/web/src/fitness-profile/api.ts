@@ -1,5 +1,10 @@
 // Requests to the Fitness Profile endpoints, each answering with the whole FitnessProfile.
-import type { BenchmarkTime, FitnessProfile, FitnessProfileUpdate } from '@mykom/shared';
+import type {
+  BenchmarkTime,
+  FitnessProfile,
+  FitnessProfileUpdate,
+  SuggestionAction,
+} from '@mykom/shared';
 
 function isFitnessProfile(value: unknown): value is FitnessProfile {
   return (
@@ -33,4 +38,6 @@ export const fitnessProfileApi = {
   reset: () => send('POST', '/api/fitness-profile/reset'),
   regenerate: () => send('POST', '/api/fitness-profile/regenerate'),
   resync: () => send('POST', '/api/activities/resync'),
+  resolveSuggestion: (action: SuggestionAction['action']) =>
+    send('POST', '/api/fitness-profile/suggestion', { action } satisfies SuggestionAction),
 };

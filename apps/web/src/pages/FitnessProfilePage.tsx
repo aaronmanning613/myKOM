@@ -2,6 +2,7 @@ import { formatTime, type FitnessProfile, type ProfileGeneration } from '@mykom/
 import { useEffect, useState } from 'react';
 import { fitnessProfileApi } from '../fitness-profile/api';
 import { BenchmarkTable } from '../fitness-profile/BenchmarkTable';
+import { useSuggestions } from '../fitness-profile/suggestion';
 
 type LoadState =
   { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; profile: FitnessProfile };
@@ -57,22 +58,41 @@ function EstimatedFrom({ profile }: { profile: FitnessProfile }) {
   );
 }
 
+/** What a pending suggestion would change, above the table that shows its values. */
+function SuggestionNote({ profile }: { profile: FitnessProfile }) {
+  if (!profile.suggestion) return null;
+  return (
+    <p className="mt-4 max-w-2xl rounded border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-950">
+      Your new runs suggest the times in the <strong>Suggested</strong> column. Apply (above)
+      changes every Benchmark that isn’t pinned (📌); pinned ones stay yours.
+    </p>
+  );
+}
+
 export function FitnessProfilePage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
   const [action, setAction] = useState<ActionState>({ kind: 'idle' });
+  const { follow, revision } = useSuggestions();
 
+  // Loads again whenever the banner applies or dismisses a suggestion.
   useEffect(() => {
     const controller = new AbortController();
     fitnessProfileApi.load(controller.signal).then(
-      (profile) => setLoad({ kind: 'ready', profile }),
+      (profile) => {
+        setLoad({ kind: 'ready', profile });
+        follow(profile);
+      },
       () => {
         if (!controller.signal.aborted) setLoad({ kind: 'failed' });
       },
     );
     return () => controller.abort();
-  }, []);
+  }, [revision, follow]);
 
-  const setProfile = (profile: FitnessProfile) => setLoad({ kind: 'ready', profile });
+  const setProfile = (profile: FitnessProfile) => {
+    setLoad({ kind: 'ready', profile });
+    follow(profile);
+  };
 
   async function run(name: Action) {
     setAction({ kind: 'busy', action: name });
@@ -117,6 +137,7 @@ export function FitnessProfilePage() {
             )}
           </div>
 
+          <SuggestionNote profile={load.profile} />
           <div className="mt-6">
             <BenchmarkTable profile={load.profile} onProfile={setProfile} />
           </div>

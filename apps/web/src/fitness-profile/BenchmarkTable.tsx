@@ -61,6 +61,10 @@ export function BenchmarkTable({
     profile.benchmarks.map((b) => [b.distance, b]),
   );
   const anyPinned = profile.benchmarks.some((b) => b.source === 'runner');
+  // A pending suggestion's values, shown beside the Runner's so they can review it.
+  const suggested = profile.suggestion
+    ? new Map(profile.suggestion.benchmarks.map((b) => [b.distance, b.seconds]))
+    : null;
 
   function change(
     run: () => Promise<FitnessProfile>,
@@ -197,12 +201,17 @@ export function BenchmarkTable({
       <table className="mt-2 w-full table-fixed text-sm">
         <thead className="text-left text-gray-500">
           <tr>
-            <th scope="col" className="w-24 py-1 font-normal sm:w-32">
+            <th scope="col" className={`${suggested ? 'w-18' : 'w-24'} py-1 font-normal sm:w-32`}>
               Distance
             </th>
-            <th scope="col" className="w-28 font-normal sm:w-44">
+            <th scope="col" className={`${suggested ? 'w-24' : 'w-28'} font-normal sm:w-44`}>
               Your Benchmark
             </th>
+            {suggested && (
+              <th scope="col" className="w-18 font-normal sm:w-28">
+                Suggested
+              </th>
+            )}
             <th scope="col" className="font-normal">
               <span className="sr-only">Status</span>
             </th>
@@ -234,7 +243,7 @@ export function BenchmarkTable({
                     onKeyDown={(event) => commitOnEnter(event, id)}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? `${inputId}-error` : `${inputId}-pace`}
-                    className={`w-24 rounded border px-2 py-1 tabular-nums ${
+                    className={`${suggested ? 'w-20' : 'w-24'} rounded border px-2 py-1 tabular-nums sm:w-24 ${
                       error
                         ? 'border-red-600'
                         : pinned
@@ -252,6 +261,13 @@ export function BenchmarkTable({
                     </span>
                   )}
                 </td>
+                {suggested && (
+                  <SuggestedCell
+                    seconds={suggested.get(id) ?? null}
+                    current={benchmark?.seconds ?? null}
+                    pinned={pinned}
+                  />
+                )}
                 <td className="py-3 text-gray-600">
                   {pinned && (
                     <span className="mr-2">
@@ -296,5 +312,34 @@ export function BenchmarkTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** A suggested time, marked when it differs from the Runner's; a pinned row keeps its own. */
+function SuggestedCell({
+  seconds,
+  current,
+  pinned,
+}: {
+  seconds: number | null;
+  current: number | null;
+  pinned: boolean;
+}) {
+  if (pinned) {
+    return (
+      <td className="py-3 text-gray-500" title="Pinned, so it stays yours">
+        <span aria-hidden="true">📌</span>
+        <span className="sr-only">stays yours</span>
+      </td>
+    );
+  }
+  if (seconds === null) return <td className="py-3 text-gray-500">—</td>;
+  const changed = seconds !== current;
+  return (
+    <td
+      className={`py-3 tabular-nums ${changed ? 'font-semibold text-orange-800' : 'text-gray-500'}`}
+    >
+      {formatTime(seconds)}
+    </td>
   );
 }

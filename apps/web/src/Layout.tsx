@@ -1,6 +1,8 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { AccountMenu } from './auth/AccountMenu';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { SuggestionBanner } from './fitness-profile/SuggestionBanner';
+import { SuggestionProvider } from './fitness-profile/suggestion';
 
 const navItems = [
   { to: '/fitness-profile', label: 'Fitness Profile' },
@@ -46,6 +48,7 @@ function Header() {
           </nav>
         )}
       </div>
+      {auth.status === 'signed-in' && <SuggestionBanner />}
     </header>
   );
 }
@@ -53,12 +56,14 @@ function Header() {
 export function Layout() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-white text-gray-900">
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-6">
-          <Outlet />
-        </main>
-      </div>
+      <SuggestionProvider>
+        <div className="min-h-screen bg-white text-gray-900">
+          <Header />
+          <main className="mx-auto max-w-3xl px-4 py-6">
+            <Outlet />
+          </main>
+        </div>
+      </SuggestionProvider>
     </AuthProvider>
   );
 }

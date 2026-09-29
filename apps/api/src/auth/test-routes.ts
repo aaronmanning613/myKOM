@@ -6,7 +6,11 @@ import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '../db/client.js';
 import { activities, runners } from '../db/schema.js';
-import { loadFitnessProfile, regenerateFitnessProfile } from '../fitness-profile/store.js';
+import {
+  loadFitnessProfile,
+  regenerateFitnessProfile,
+  suggestFitnessProfile,
+} from '../fitness-profile/store.js';
 import { STRAVA_SCOPES } from '../strava/client.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
 import { requireRunner } from './guard.js';
@@ -23,11 +27,18 @@ type TestLoginBody = { firstName?: string } | undefined;
 /** A run to store as if the activity list had returned it: metres, seconds, days before now. */
 type TestRun = { name: string; distance: number; movingTime: number; daysAgo: number };
 
+/**
+ * `apply` (the default) applies the generated profile, as a first sign-in's sync does. `suggest`
+ * only suggests it, as a new-run check does.
+ */
+type TestRunsBody = { runs: TestRun[]; profile?: 'apply' | 'suggest' };
+
 const testRunsSchema = {
   type: 'object',
   required: ['runs'],
   additionalProperties: false,
   properties: {
+    profile: { type: 'string', enum: ['apply', 'suggest'] },
     runs: {
       type: 'array',
       items: {
@@ -85,9 +96,9 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
     return me;
   });
 
-  // Stores runs for the signed-in Runner (no polyline, so crawls ignore them) and applies the
-  // Fitness Profile generated from them, as a first sign-in's sync would.
-  app.post<{ Body: { runs: TestRun[] } }>(
+  // Stores runs for the signed-in Runner (no polyline, so crawls ignore them) and applies or
+  // suggests the Fitness Profile generated from them.
+  app.post<{ Body: TestRunsBody }>(
     '/api/test/runs',
     { schema: { body: testRunsSchema } },
     async (request, reply) => {
@@ -107,7 +118,8 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
           })),
         );
       }
-      await regenerateFitnessProfile(db, runner.id, now);
+      if (request.body.profile === 'suggest') await suggestFitnessProfile(db, runner.id, now);
+      else await regenerateFitnessProfile(db, runner.id, now);
       const profile: FitnessProfile = await loadFitnessProfile(db, runner.id);
       return profile;
     },

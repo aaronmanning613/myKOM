@@ -221,7 +221,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - **Resync my runs**, with its explainer and last-resynced time;
   - the empty-profile message.
   - **Check:** component tests plus e2e: edit → pinned → reload persists; update-all; reset; use generated.
-- [ ] **U2** The suggestion banner:
+- [x] **U2** The suggestion banner:
   - a slim banner under the nav on every signed-in page while `/api/me` reports a suggestion;
   - **Apply** in place, **Review** (opens the Fitness Profile with suggested values beside current ones), **×** dismiss.
   - **Check:** component tests plus e2e for apply and dismiss (seed a suggestion through a test-only route or DB helper).

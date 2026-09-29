@@ -1,4 +1,4 @@
-import type { FitnessProfile } from '@mykom/shared';
+import type { FitnessProfile, Me } from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { activities, runners, stravaTokens } from '../db/schema.js';
@@ -102,6 +102,31 @@ describe('POST /api/test/runs', () => {
     expect(profile.benchmarks.every((b) => b.source === 'generated')).toBe(true);
     const stored = await db.select().from(activities).where(eq(activities.runnerId, me.id));
     expect(stored).toHaveLength(2);
+    await app.close();
+  });
+
+  it('only suggests the generated profile when asked to', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const login = await app.inject({ method: 'POST', url: '/api/test/login' });
+    runnerIds.push(login.json<{ id: number }>().id);
+    const cookies = {
+      [SESSION_COOKIE]: login.cookies.find((c) => c.name === SESSION_COOKIE)!.value,
+    };
+    const post = (payload: Record<string, unknown>) =>
+      app.inject({ method: 'POST', url: '/api/test/runs', cookies, payload });
+
+    await post({ runs: [{ name: 'Marathon', distance: 42_195, movingTime: 8463, daysAgo: 300 }] });
+    const res = await post({
+      runs: [{ name: 'Fast 10K', distance: 10_000, movingTime: 1800, daysAgo: 2 }],
+      profile: 'suggest',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const profile = res.json<FitnessProfile>();
+    expect(profile.suggestion?.sources.map((s) => s.name)).toContain('Fast 10K');
+    expect(profile.generation?.sources.map((s) => s.name)).toEqual(['Marathon']);
+    const me = await app.inject({ method: 'GET', url: '/api/me', cookies });
+    expect(me.json<Me>().suggestion?.source?.name).toBe('Fast 10K');
     await app.close();
   });
 
