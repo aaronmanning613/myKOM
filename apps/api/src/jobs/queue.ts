@@ -1,8 +1,9 @@
 // The Strava job queue: work sits in `strava_jobs` and is drained by requests and the tick.
-import { and, asc, desc, eq, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { STRAVA_JOB_KINDS, stravaJobs } from '../db/schema.js';
-import { StravaRevokedError, type StravaClient } from '../strava/client.js';
+import { StravaRateLimitError, StravaRevokedError, type StravaClient } from '../strava/client.js';
+import { checkBudget, recordRateLimited } from './budget.js';
 
 export type JobKind = (typeof STRAVA_JOB_KINDS)[number];
 export type Job = typeof stravaJobs.$inferSelect;
@@ -57,7 +58,13 @@ export type DrainOptions = {
   concurrency?: number;
 };
 
-export type DrainResult = { succeeded: number; retried: number; failed: number };
+export type DrainResult = {
+  succeeded: number;
+  retried: number;
+  failed: number;
+  /** Jobs Strava rate-limited (429), put back for the next window without counting an attempt. */
+  rateLimited: number;
+};
 
 /**
  * The queue, with its handlers registered by kind. A job whose kind has no handler fails
@@ -85,8 +92,11 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
     return row!.id;
   }
 
-  /** Claims the most urgent runnable job (or one whose lease ran out), or returns undefined. */
-  async function claim(now: Date): Promise<Job | undefined> {
+  /**
+   * Claims the most urgent runnable job (or one whose lease ran out), leaving out the given
+   * Runners' jobs, or returns undefined.
+   */
+  async function claim(now: Date, skipRunners: number[]): Promise<Job | undefined> {
     const next = db
       .select({ id: stravaJobs.id })
       .from(stravaJobs)
@@ -94,6 +104,7 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
         and(
           or(eq(stravaJobs.status, 'pending'), eq(stravaJobs.status, 'running')),
           lte(stravaJobs.notBefore, now),
+          skipRunners.length > 0 ? notInArray(stravaJobs.runnerId, skipRunners) : undefined,
         ),
       )
       .orderBy(desc(stravaJobs.priority), asc(stravaJobs.id))
@@ -122,6 +133,20 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
       if (error instanceof StravaRevokedError) return undefined;
       const now = context.now();
       const lastError = error instanceof Error ? error.message : String(error);
+      if (error instanceof StravaRateLimitError) {
+        // Not the job's fault: try again in the next window, without using up an attempt.
+        await recordRateLimited(db, job.runnerId, error.rateLimits, now);
+        await db
+          .update(stravaJobs)
+          .set({
+            status: 'pending',
+            attempts: sql`${stravaJobs.attempts} - 1`,
+            notBefore: error.retryAt,
+            lastError,
+          })
+          .where(eq(stravaJobs.id, job.id));
+        return 'rateLimited';
+      }
       if (handler && job.attempts < MAX_JOB_ATTEMPTS) {
         const backoff = RETRY_BACKOFF_MS * 2 ** (job.attempts - 1);
         await db
@@ -144,19 +169,47 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
   }
 
   /**
-   * Runs jobs, most urgent first, until none are runnable or the deadline passes. Claims use
-   * `FOR UPDATE SKIP LOCKED`, so overlapping drains (other requests, instances or deploys)
-   * never run the same job.
+   * Runs jobs, most urgent first, until none are runnable, the budget runs out or the deadline
+   * passes. Claims use `FOR UPDATE SKIP LOCKED`, so overlapping drains (other requests,
+   * instances or deploys) never run the same job.
+   *
+   * Before each claim the budget is checked: the drain stops when an app-wide window has only
+   * the interactive reserve left, and a Runner at their daily cap has their jobs moved to the
+   * next UTC day. Each job counts as one read until it finishes (and Strava's headers say how
+   * many it really used). Workers check and claim one at a time, so this drain's own workers
+   * can't overshoot; overlapping drains can, by at most the reads they have running.
    */
   async function drain({ deadline, now, strava, concurrency = 1 }: DrainOptions) {
-    const result: DrainResult = { succeeded: 0, retried: 0, failed: 0 };
+    const result: DrainResult = { succeeded: 0, retried: 0, failed: 0, rateLimited: 0 };
     const context: JobContext = { db, strava, now };
+    const inFlight = { total: 0, byRunner: new Map<number, number>() };
+    const adjust = (runnerId: number, by: number) => {
+      inFlight.total += by;
+      inFlight.byRunner.set(runnerId, (inFlight.byRunner.get(runnerId) ?? 0) + by);
+    };
+    let gate: Promise<unknown> = Promise.resolve();
+    function checkAndClaim(): Promise<Job | undefined> {
+      const next = gate.then(async () => {
+        if (now() >= deadline) return undefined;
+        const budget = await checkBudget(db, now(), inFlight);
+        if (budget.stopped) return undefined;
+        const job = await claim(now(), budget.blockedRunners);
+        if (job) adjust(job.runnerId, 1);
+        return job;
+      });
+      gate = next.catch(() => undefined);
+      return next;
+    }
     async function worker() {
-      while (now() < deadline) {
-        const job = await claim(now());
+      for (;;) {
+        const job = await checkAndClaim();
         if (!job) return;
-        const outcome = await run(job, context);
-        if (outcome) result[outcome] += 1;
+        try {
+          const outcome = await run(job, context);
+          if (outcome) result[outcome] += 1;
+        } finally {
+          adjust(job.runnerId, -1);
+        }
       }
     }
     await Promise.all(Array.from({ length: concurrency }, worker));

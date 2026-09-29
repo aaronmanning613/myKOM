@@ -10,6 +10,7 @@ import { DEV_TOKEN_ENCRYPTION_KEY } from '../env.js';
 import { createDbGeocodeCache } from '../geocode/cache.js';
 import { createNominatimClient } from '../geocode/nominatim.js';
 import { createThrottle } from '../geocode/throttle.js';
+import { recordRead } from '../jobs/budget.js';
 import type { IpLocator } from '../locate-ip/locator.js';
 import { createStravaClient } from '../strava/client.js';
 import { createTokenCipher } from '../strava/token-cipher.js';
@@ -84,6 +85,7 @@ export function buildTestApp(
     tokenStore: createDbTokenStore(database.db, testTokenCipher),
     fetch,
     onRevoked: (runnerId) => deleteRunner(database.db, runnerId),
+    onRead: (read) => recordRead(database.db, read),
   });
   const nominatimFetch = vi.fn<typeof globalThis.fetch>();
   const nominatim = createNominatimClient({

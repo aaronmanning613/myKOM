@@ -179,7 +179,7 @@ describe('drain', () => {
     const result = await queue.drain({ deadline: later(clock), ...clock, strava: strava() });
 
     expect(ran).toEqual([2, 4, 3, 1, 0]);
-    expect(result).toEqual({ succeeded: 5, retried: 0, failed: 0 });
+    expect(result).toEqual({ succeeded: 5, retried: 0, failed: 0, rateLimited: 0 });
   });
 
   it('marks a job done with its finish time', async () => {
@@ -290,7 +290,7 @@ describe('drain', () => {
 
     for (let attempt = 1; attempt < MAX_JOB_ATTEMPTS; attempt++) {
       const result = await queue.drain({ deadline: later(clock), ...clock, strava: strava() });
-      expect(result).toEqual({ succeeded: 0, retried: 1, failed: 0 });
+      expect(result).toEqual({ succeeded: 0, retried: 1, failed: 0, rateLimited: 0 });
       const backoff = RETRY_BACKOFF_MS * 2 ** (attempt - 1);
       expect(await jobRow(id)).toMatchObject({
         status: 'pending',
@@ -306,7 +306,7 @@ describe('drain', () => {
     }
 
     const result = await queue.drain({ deadline: later(clock), ...clock, strava: strava() });
-    expect(result).toEqual({ succeeded: 0, retried: 0, failed: 1 });
+    expect(result).toEqual({ succeeded: 0, retried: 0, failed: 1, rateLimited: 0 });
     expect(await jobRow(id)).toMatchObject({
       status: 'failed',
       attempts: MAX_JOB_ATTEMPTS,
@@ -372,7 +372,7 @@ describe('drain', () => {
 
     const result = await queue.drain({ deadline: later(clock), ...clock, strava: strava() });
 
-    expect(result).toEqual({ succeeded: 1, retried: 0, failed: 0 });
+    expect(result).toEqual({ succeeded: 1, retried: 0, failed: 0, rateLimited: 0 });
     expect(ran).toEqual([2]);
     expect(await jobRow(revokedJob)).toBeUndefined();
   });

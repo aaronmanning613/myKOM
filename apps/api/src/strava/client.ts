@@ -169,6 +169,20 @@ export type StravaClientOptions = {
    * deletes their data like Disconnect does, whichever call notices it first.
    */
   onRevoked?: (runnerId: number) => Promise<void>;
+  /**
+   * Runs after every API read made for a Runner that got a response (a 429 included), so the
+   * read budget can count it and keep in step with Strava's rate-limit headers.
+   */
+  onRead?: (read: StravaReadEvent) => Promise<void>;
+};
+
+/** One API read made for a Runner, as reported to `onRead`. */
+export type StravaReadEvent = {
+  runnerId: number;
+  rateLimits: StravaRateLimits;
+  /** Strava refused it with 429. */
+  rateLimited: boolean;
+  at: Date;
 };
 
 export type StravaClient = ReturnType<typeof createStravaClient>;
@@ -180,6 +194,7 @@ export function createStravaClient({
   fetch: fetchFn = globalThis.fetch,
   now = () => new Date(),
   onRevoked,
+  onRead,
 }: StravaClientOptions) {
   async function revoked(error: StravaRevokedError): Promise<StravaRevokedError> {
     await onRevoked?.(error.runnerId);
@@ -194,9 +209,11 @@ export function createStravaClient({
     return (await request(url, init)).body;
   }
 
+  /** A request to Strava. `runnerId` marks an API read made for that Runner, reported to `onRead`. */
   async function request(
     url: string,
     init: RequestInit,
+    runnerId?: number,
   ): Promise<{ body: unknown; rateLimits: StravaRateLimits }> {
     let res: Response;
     let text: string;
@@ -208,6 +225,9 @@ export function createStravaClient({
     }
     const body = parseJson(text);
     const rateLimits = parseRateLimits(res.headers);
+    if (runnerId !== undefined) {
+      await onRead?.({ runnerId, rateLimits, rateLimited: res.status === 429, at: now() });
+    }
     if (res.status === 429) {
       throw new StravaRateLimitError(
         `Strava's rate limit was hit on ${url}`,
@@ -232,9 +252,13 @@ export function createStravaClient({
   ): Promise<StravaRead<T>> {
     const accessToken = await getValidAccessToken(runnerId);
     try {
-      const { body, rateLimits } = await request(`${STRAVA_API_URL}${path}`, {
-        headers: { authorization: `Bearer ${accessToken}` },
-      });
+      const { body, rateLimits } = await request(
+        `${STRAVA_API_URL}${path}`,
+        {
+          headers: { authorization: `Bearer ${accessToken}` },
+        },
+        runnerId,
+      );
       return { data: map(body), rateLimits };
     } catch (error) {
       if (error instanceof StravaError && error.status === 401 && !isMissingScope(error.body)) {

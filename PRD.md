@@ -144,7 +144,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - `drain({ deadline, now, strava })` claims with `FOR UPDATE SKIP LOCKED`, runs handlers by kind, and records success, retry (attempts, backoff via `not_before`) or failure;
   - handlers are registered by kind.
   - **Check:** seam-2 tests against Postgres: priority order; `not_before` respected; two concurrent drains never run the same job; the deadline stops the drain; retries give up after the attempt limit.
-- [ ] **J2** Budget:
+- [x] **J2** Budget:
   - `strava_read_usage` keeps app-wide 15-minute window and day counters (synced from the rate-limit headers) and per-Runner daily reads;
   - drains stop before using the last 10 reads of a window, which stay reserved for interactive calls;
   - a Runner at 500 reads today has their jobs deferred to the next UTC day;
