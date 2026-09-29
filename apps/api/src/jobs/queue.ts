@@ -34,6 +34,8 @@ export type JobContext = {
   strava: StravaClient;
   /** The drain's clock. */
   now: () => Date;
+  /** Queues follow-up work (at the drain's current time). */
+  enqueue: (job: NewJob) => Promise<number>;
 };
 
 /** Runs one job. Throwing records a retry (or, past the attempt limit, a failure). */
@@ -181,7 +183,7 @@ export function createJobQueue(db: Database['db'], handlers: JobHandlers) {
    */
   async function drain({ deadline, now, strava, concurrency = 1 }: DrainOptions) {
     const result: DrainResult = { succeeded: 0, retried: 0, failed: 0, rateLimited: 0 };
-    const context: JobContext = { db, strava, now };
+    const context: JobContext = { db, strava, now, enqueue: (job) => enqueue(job, now()) };
     const inFlight = { total: 0, byRunner: new Map<number, number>() };
     const adjust = (runnerId: number, by: number) => {
       inFlight.total += by;

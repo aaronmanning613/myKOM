@@ -156,7 +156,7 @@ async function seedEverything(runnerId: number, segmentId: number) {
   });
   await db.insert(runnerSegments).values({ runnerId, segmentId, viaRun: true, effortCount: 1 });
   await db.insert(segmentEfforts).values({
-    id: segmentId + 2,
+    id: BigInt(segmentId + 2),
     runnerId,
     activityId,
     segmentId,

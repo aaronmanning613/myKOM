@@ -151,7 +151,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - a 429 defers to the next window.
   - Expose `budgetStatus(runnerId)` for the "continues tomorrow" message.
   - **Check:** seam-2 tests for each rule with a fake clock.
-- [ ] **J3** Handlers:
+- [x] **J3** Handlers:
   - **activity detail:** upsert summary-only `segments` rows; update `runner_segments` (via run, effort count, best time/date, top-10 hint); an effort with a KOM/QOM achievement or top-10 hint enqueues that Segment's detail at **search** priority; mark `detail_fetched_at`;
   - **Segment detail:** fill the shared `segments` row, `record_status` (with a log line for `unparseable`, including the raw string), `athlete_count` and geometry; take the PB from `athlete_segment_stats` when faster;
   - **starred:** upsert `runner_segments` via starred.

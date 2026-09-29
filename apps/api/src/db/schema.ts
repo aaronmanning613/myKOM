@@ -238,8 +238,8 @@ export const runnerSegments = pgTable(
 export const segmentEfforts = pgTable(
   'segment_efforts',
   {
-    // The Strava effort id.
-    id: bigint('id', { mode: 'number' }).primaryKey(),
+    // The Strava effort id. These exceed Number.MAX_SAFE_INTEGER, so they're BigInts here.
+    id: bigint('id', { mode: 'bigint' }).primaryKey(),
     runnerId: integer('runner_id')
       .notNull()
       .references(() => runners.id, { onDelete: 'cascade' }),
