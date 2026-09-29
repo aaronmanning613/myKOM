@@ -1,14 +1,19 @@
 // The results for the Runner's Search Area: their Known Segments there, ranked on read from
-// what's stored. No Strava calls.
+// what's stored, and the debug view of the same ranking. No Strava calls.
 import {
+  distanceKm,
   MIN_USABLE_BENCHMARKS,
   rank,
+  recordFor,
   softBenchmarks,
+  type DebugSegment,
+  type DebugSegments,
   type KnownSegment,
   type RankedRow,
   type RecordGender,
   type ResultRow,
   type Results,
+  type ResultsList,
   type SearchProgress,
 } from '@mykom/shared';
 import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
@@ -32,13 +37,16 @@ export function recordGenderOf(runner: {
   return runner.recordGender ?? 'KOM';
 }
 
-/** The Runner's Known Segments starting in (a box around) the area, with their Segment PBs. */
-async function knownSegmentsNear(
+/**
+ * The Runner's Known Segments with their Segment PBs: those starting in (a box around) the
+ * area, or all of them when `area` is null.
+ */
+async function knownSegments(
   db: Db,
   runnerId: number,
-  area: { lat: number; lng: number; radiusKm: number },
+  area: { lat: number; lng: number; radiusKm: number } | null,
 ): Promise<KnownSegment[]> {
-  const box = boxAround(area);
+  const box = area && boxAround(area);
   const rows = await db
     .select({ segment: segments, link: runnerSegments })
     .from(runnerSegments)
@@ -46,10 +54,14 @@ async function knownSegmentsNear(
     .where(
       and(
         eq(runnerSegments.runnerId, runnerId),
-        gte(segments.startLat, box.minLat),
-        lte(segments.startLat, box.maxLat),
-        gte(segments.startLng, box.minLng),
-        lte(segments.startLng, box.maxLng),
+        box
+          ? and(
+              gte(segments.startLat, box.minLat),
+              lte(segments.startLat, box.maxLat),
+              gte(segments.startLng, box.minLng),
+              lte(segments.startLng, box.maxLng),
+            )
+          : undefined,
       ),
     );
   return rows.map(({ segment, link }) => {
@@ -112,14 +124,11 @@ async function searchProgress(db: Db, runnerId: number): Promise<SearchProgress 
 }
 
 /**
- * Ranks the Runner's Known Segments in their saved Search Area into the three lists, with
- * counts, the search's progress and the budget. Null when they have no Search Area.
+ * The one ranking pipeline behind both the results and the debug endpoint: the Runner's
+ * Known Segments (in the Search Area, or all of them with `everywhere`), Benchmarks and
+ * record gender, through `rank`. Null when they have no Search Area.
  */
-export async function loadResults(
-  db: Db,
-  runnerId: number,
-  now = new Date(),
-): Promise<Results | null> {
+async function loadRanking(db: Db, runnerId: number, { everywhere = false } = {}) {
   const searchArea = await loadSearchArea(db, runnerId);
   if (!searchArea) return null;
   const [runner] = await db
@@ -136,12 +145,23 @@ export async function loadResults(
     })
     .from(benchmarks)
     .where(eq(benchmarks.runnerId, runnerId));
-  const ranked = rank({
-    benchmarks: profile,
-    recordGender,
-    area: searchArea,
-    segments: await knownSegmentsNear(db, runnerId, searchArea),
-  });
+  const known = await knownSegments(db, runnerId, everywhere ? null : searchArea);
+  const ranked = rank({ benchmarks: profile, recordGender, area: searchArea, segments: known });
+  return { searchArea, recordGender, profile, known, ranked };
+}
+
+/**
+ * Ranks the Runner's Known Segments in their saved Search Area into the three lists, with
+ * counts, the search's progress and the budget. Null when they have no Search Area.
+ */
+export async function loadResults(
+  db: Db,
+  runnerId: number,
+  now = new Date(),
+): Promise<Results | null> {
+  const ranking = await loadRanking(db, runnerId);
+  if (!ranking) return null;
+  const { searchArea, recordGender, profile, ranked } = ranking;
   const progress = await searchProgress(db, runnerId);
   const budget = await budgetStatus(db, runnerId, now);
   return {
@@ -160,4 +180,34 @@ export async function loadResults(
       pausedUntil: budget.paused?.until.toISOString() ?? null,
     },
   };
+}
+
+/**
+ * Every one of the Runner's Known Segments (not only those near the Search Area) with the list
+ * it's in or the reason it's in none, from the same pipeline as `loadResults`. Nearest first.
+ */
+export async function loadDebugSegments(db: Db, runnerId: number): Promise<DebugSegments | null> {
+  const ranking = await loadRanking(db, runnerId, { everywhere: true });
+  if (!ranking) return null;
+  const { searchArea, recordGender, known, ranked } = ranking;
+  const lists = new Map<number, ResultsList>();
+  for (const list of ['targets', 'nearestMisses', 'suspicious'] as const) {
+    for (const row of ranked[list]) lists.set(row.segment.id, list);
+  }
+  const reasons = new Map(ranked.excluded.map(({ segmentId, reason }) => [segmentId, reason]));
+  const debugSegments = known.map((segment): DebugSegment => {
+    const reason = reasons.get(segment.id) ?? null;
+    const record = segment.details && recordFor(segment.details, recordGender);
+    return {
+      segmentId: segment.id,
+      name: segment.details?.name ?? null,
+      kmFromCentre: distanceKm(searchArea, segment.start),
+      list: lists.get(segment.id) ?? null,
+      reason,
+      recordStatus:
+        reason === 'no-record' && record && record.status !== 'ok' ? record.status : null,
+    };
+  });
+  debugSegments.sort((a, b) => a.kmFromCentre - b.kmFromCentre || a.segmentId - b.segmentId);
+  return { searchArea, recordGender, segments: debugSegments };
 }

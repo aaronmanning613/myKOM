@@ -69,12 +69,14 @@ export function buildTestApp(
   database: Pick<Database, 'db' | 'isReachable'>,
   {
     testRoutes = false,
+    debugRoutes = false,
     nominatim: withNominatim = true,
     ipLocator,
     trustProxy,
     tick,
   }: {
     testRoutes?: boolean;
+    debugRoutes?: boolean;
     /** false builds the app as if NOMINATIM_USER_AGENT were unset. */
     nominatim?: boolean;
     /** Leave out to build the app as if the GeoLite2 City database were missing. */
@@ -112,6 +114,7 @@ export function buildTestApp(
     trustProxy,
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,
+    debugRoutes,
     tick,
     queue,
   });

@@ -1,6 +1,7 @@
 import type { Prediction } from './predict.js';
+import type { ExclusionReason } from './rank.js';
 import type { SearchArea } from './search-area.js';
-import type { RecordGender } from './target-record.js';
+import type { NoRecordStatus, RecordGender } from './target-record.js';
 
 /** One Segment in a results list. Never carries the record holder's name or photo. */
 export type ResultRow = {
@@ -66,4 +67,28 @@ export type Results = {
   /** Work for the area is still pending, so the page should poll. */
   pending: boolean;
   budget: ResultsBudget;
+};
+
+/** The results list a Segment appears in. */
+export type ResultsList = 'targets' | 'nearestMisses' | 'suspicious';
+
+/** One Known Segment in `GET /api/debug/segments`: the list it's in, or why it's in none. */
+export type DebugSegment = {
+  segmentId: number;
+  /** Null while the Segment is pending (no details yet). */
+  name: string | null;
+  kmFromCentre: number;
+  /** Null when the Segment is excluded. */
+  list: ResultsList | null;
+  /** Null when the Segment is in a list. */
+  reason: ExclusionReason | null;
+  /** Why there's no Target Record, alongside the `no-record` reason; otherwise null. */
+  recordStatus: NoRecordStatus | null;
+};
+
+/** What `GET /api/debug/segments` returns: every one of the Runner's Known Segments. */
+export type DebugSegments = {
+  searchArea: SearchArea;
+  recordGender: RecordGender;
+  segments: DebugSegment[];
 };

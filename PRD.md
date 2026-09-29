@@ -201,7 +201,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - `POST /api/search` replaces `PUT /api/search-area`: it saves the area, sets `onboarded_at` if unset, fetches starred Segments, starts a crawl (J4), drains a first burst (about 20 runs + 60 Segment details, 8 in parallel, within the budget), and returns the results payload;
   - `GET /api/search-area` is unchanged.
   - **Check:** seam-3 tests with a fake Strava: the first call returns stored Segments immediately plus progress; the burst respects the budget; an invalid radius is rejected.
-- [ ] **X2** Results:
+- [x] **X2** Results:
   - `GET /api/results` loads the area's Known Segments with SQL (bbox index + exact distance, zero Strava calls), the Benchmarks and gender, and calls `rank`;
   - it returns the three lists (rows carry name, distance, avg grade, km from centre, athletes, record, Predicted Time + confidence reason, PB, Held, Implausible, record age), counts, crawl progress and `budgetStatus`;
   - while work is pending, it drains for up to about 2 s first.

@@ -13,6 +13,7 @@ import { endSession, sessionRunnerId } from './auth/session.js';
 import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
 import type { JobQueue } from './jobs/queue.js';
 import { preferencesRoutes } from './preferences/routes.js';
+import { resultsRoutes } from './results/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
@@ -40,6 +41,8 @@ export type BuildAppOptions = {
   sessionSecret: string;
   /** Registers test-only routes such as `POST /api/test/login`. Never on in production. */
   testRoutes?: boolean;
+  /** Registers `GET /api/debug/segments`. Never on in production. */
+  debugRoutes?: boolean;
   /**
    * Live mode only: registers `POST /api/test/login-live`, which signs in the real Runner from
    * this store. `strava` must use the same store. Never on in production.
@@ -74,6 +77,7 @@ export function buildApp({
   trustProxy = false,
   sessionSecret,
   testRoutes: enableTestRoutes = false,
+  debugRoutes = false,
   liveTokenStore,
   tick,
   queue,
@@ -126,6 +130,7 @@ export function buildApp({
   app.register(syncRoutes, { db: database.db, strava });
   app.register(preferencesRoutes, { db: database.db });
   app.register(searchAreaRoutes, { db: database.db, strava, queue });
+  app.register(resultsRoutes, { db: database.db, strava, queue, debug: debugRoutes });
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });
   if (tick) app.register(tickRoutes, tick);

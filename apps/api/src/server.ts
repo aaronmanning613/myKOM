@@ -67,6 +67,7 @@ const app = buildApp({
   trustProxy: env.trustProxy,
   sessionSecret: env.sessionSecret,
   testRoutes: env.testMode,
+  debugRoutes: !env.production,
   liveTokenStore,
   queue,
   tick: {
