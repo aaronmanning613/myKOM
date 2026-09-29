@@ -4,6 +4,7 @@ import { RUN_SPORT_TYPES } from '@mykom/shared';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { activities, runners, segmentEfforts } from '../db/schema.js';
+import { regenerateFitnessProfile } from '../fitness-profile/store.js';
 import { activityColumns, refreshRunSegments, storeStarredSegments } from '../jobs/handlers.js';
 import {
   STRAVA_PAGE_SIZE,
@@ -129,4 +130,14 @@ export async function syncStarredSegments({ db, strava }: SyncDeps, runnerId: nu
     await storeStarredSegments(db, runnerId, data);
     if (data.length < STRAVA_PAGE_SIZE) break;
   }
+}
+
+/**
+ * A Runner's first sync, at their first sign-in: every run, the Fitness Profile generated from
+ * them (applied), and their starred Segments. No run details are queued: crawls fetch them.
+ */
+export async function syncFirstSignIn(deps: SyncDeps, runnerId: number, now = new Date()) {
+  await syncActivities(deps, runnerId, 'full', now);
+  await regenerateFitnessProfile(deps.db, runnerId, now);
+  await syncStarredSegments(deps, runnerId);
 }

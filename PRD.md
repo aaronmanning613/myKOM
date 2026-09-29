@@ -265,7 +265,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Wrap-up
 
-- [ ] **W1** Full pass:
+- [x] **W1** Full pass:
   - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`;
   - add a live smoke test to `pnpm test:e2e:live`: a real 1 km search on the test account returns ranked rows, capped at **30 Strava reads** (assert it through the usage counters);
   - a final MCP click-through of every page as the real Runner (`pnpm dev:live`);

@@ -2,11 +2,11 @@ import { randomBytes } from 'node:crypto';
 import type { Me } from '@mykom/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
-import { loadSuggestionSummary, regenerateFitnessProfile } from '../fitness-profile/store.js';
+import { loadSuggestionSummary } from '../fitness-profile/store.js';
 import { StravaRevokedError, type StravaClient } from '../strava/client.js';
 import { DeauthorizeBlockedError } from '../strava/live-mode.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
-import { syncActivities, syncStarredSegments } from '../sync/activities.js';
+import { syncFirstSignIn } from '../sync/activities.js';
 import { requireRunner } from './guard.js';
 import { deleteRunner, findRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
@@ -83,10 +83,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
     const runner = await findRunner(db, runnerId);
     if (runner && !runner.activitiesCheckedAt) {
       try {
-        const now = new Date();
-        await syncActivities({ db, strava }, runnerId, 'full', now);
-        await regenerateFitnessProfile(db, runnerId, now);
-        await syncStarredSegments({ db, strava }, runnerId);
+        await syncFirstSignIn({ db, strava }, runnerId);
       } catch (err) {
         // The Strava client has already deleted a revoked Runner.
         if (err instanceof StravaRevokedError) return toLogin('strava');
