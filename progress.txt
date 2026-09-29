@@ -160,3 +160,8 @@
     then: `curl localhost:8080/` is the web app's HTML, `curl localhost:8080/api/health` is {"ok":true,"db":"up"}, `curl -X POST localhost:8080/api/test/login` is 404.
   If it passes, tick H1 in PRD.md; the next iteration will re-try the Check once if nothing else is done.
 - Notes: no TODO(decision)s. The image doesn't run migrations (H2's workflow runs them before deploying). It does contain apps/api/dist/db/migrate.js if needed (`node --conditions=mykom-dist dist/db/migrate.js`).
+
+## H1 - One production image, unblocked (2026-09-29)
+- Done: re-tried the blocked Check. docker is allowed now, and no code changes were needed.
+- Verified: `docker build -t mykom:h1 .` succeeds. `docker run` with production env (NODE_ENV=production from the image; DATABASE_URL pointing at host.docker.internal:5433; SESSION_SECRET, TOKEN_ENCRYPTION_KEY, STRAVA_CLIENT_ID/SECRET) listens on 0.0.0.0:8080. GET / is the web app's index.html (no-cache) with its hashed assets, /results gets the SPA fallback (200 text/html), /api/health is {"ok":true,"db":"up"}, and POST /api/test/login and GET /api/debug/segments are 404. `pnpm typecheck && pnpm lint && pnpm test` (shared 237, api 413, web 107) and `pnpm test:e2e` (33) pass.
+- Notes: the container warns that NOMINATIM_USER_AGENT and TICK_OIDC_AUDIENCE / TICK_SERVICE_ACCOUNT are unset. H2's docs/deploy.md should set them on Cloud Run.

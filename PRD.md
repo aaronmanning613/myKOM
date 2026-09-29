@@ -253,7 +253,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Production build (spec: Hosting and deployment). Code only; no cloud resources
 
-- [ ] **H1** One production image:
+- [x] **H1** One production image:
   - the API serves the built web app with `@fastify/static` (SPA fallback for client routes, `/api` and `/internal` excluded);
   - production config requires the spec's secrets, and disables test, live and debug routes and the IP fallback;
   - a multi-stage `Dockerfile` (the build stage runs `pnpm build`; the runtime is Node 22 slim) that listens on `$PORT`.
