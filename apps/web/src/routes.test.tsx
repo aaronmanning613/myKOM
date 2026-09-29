@@ -33,13 +33,6 @@ describe('routes', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument();
   });
 
-  it('shows Results as coming soon', async () => {
-    stubApi(signedIn());
-    renderAt('/results');
-
-    expect(await screen.findByText(/coming soon/i)).toBeInTheDocument();
-  });
-
   it('navigates via the nav and marks the current page', async () => {
     stubApi(signedIn());
     const router = renderAt('/');

@@ -231,7 +231,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - the IP fallback is hidden when the server reports it unavailable, as it always is in production (config);
   - a "Map a whole area in the background" section: place + radius 10/25/50 (default 25), and a list of Mapped Areas with progress bars and remove buttons.
   - **Check:** component tests plus e2e for search → results, and start/remove a Mapped Area.
-- [ ] **U4** The Results page, replacing the prototype and the placeholder:
+- [x] **U4** The Results page, replacing the prototype and the placeholder:
   - a toolbar with a radius dropdown (re-runs the search) and the place linking to the Search Area page;
   - the summary line "N of M Known Segments are Achievable";
   - Your targets / Nearest misses / Suspicious records (muted) with counts;

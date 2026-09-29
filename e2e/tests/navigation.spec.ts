@@ -49,9 +49,3 @@ for (const viewport of viewports) {
     });
   });
 }
-
-test('the results page is a coming-soon placeholder', async ({ page }) => {
-  await signIn(page);
-  await page.goto('/results');
-  await expect(page.getByText(/coming soon/i)).toBeVisible();
-});

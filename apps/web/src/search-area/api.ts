@@ -1,5 +1,5 @@
-// Requests behind the Search Area page: the saved area, searching, place search, the IP
-// fallback and Mapped Areas.
+// Requests behind the Search Area and Results pages: the saved area, searching and its
+// results, place search, the IP fallback and Mapped Areas.
 import type {
   GeocodeResponse,
   LocateIpResponse,
@@ -49,6 +49,9 @@ export const searchAreaApi = {
   /** Saves the Search Area and searches it (the first burst can take a few seconds). */
   search: (update: SearchAreaUpdate) =>
     request<Results>('/api/search', (body) => 'searchArea' in body, post(update)),
+  /** The saved Search Area's results (after up to ~2 s of work); a 404 without a Search Area. */
+  results: (signal?: AbortSignal) =>
+    request<Results>('/api/results', (body) => 'searchArea' in body, { signal }),
   geocode: (q: string) =>
     request<GeocodeResponse>(`/api/geocode?${new URLSearchParams({ q })}`, (body) =>
       Array.isArray(body.results),
