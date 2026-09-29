@@ -9,14 +9,19 @@ import type { NominatimClient } from './geocode/nominatim.js';
 import { geocodeRoutes } from './geocode/routes.js';
 import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
+import { endSession } from './auth/session.js';
 import { searchAreaRoutes } from './search-area/routes.js';
-import type { StravaClient } from './strava/client.js';
+import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
 import type { TokenCipher } from './strava/token-cipher.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
   database: Pick<Database, 'db' | 'isReachable'>;
+  /**
+   * Its `onRevoked` should delete the Runner (see `deleteRunner`); the app then ends the
+   * session of any request that hit the revocation.
+   */
   strava: StravaClient;
   /** Encrypts Strava tokens at rest. `strava`'s token store must use the same one. */
   tokenCipher: TokenCipher;
@@ -56,6 +61,22 @@ export function buildApp({
 }: BuildAppOptions) {
   const app = Fastify({ logger, trustProxy });
   app.register(fastifyCookie, { secret: sessionSecret });
+
+  app.setErrorHandler((error, request, reply) => {
+    // The Strava client has already deleted a revoked Runner's data, so sign them out like
+    // `requireRunner` does for a Runner who no longer exists.
+    if (error instanceof StravaRevokedError) {
+      request.log.warn({ runnerId: error.runnerId }, 'Strava access revoked; Runner deleted');
+      endSession(request, reply);
+      return reply.code(401).send({ error: 'signed_out' });
+    }
+    // Otherwise Fastify would reply with Strava's own status, and a 401 would look like a sign-out.
+    if (error instanceof StravaError) {
+      request.log.error(error, 'Strava request failed');
+      return reply.code(502).send({ error: 'strava' });
+    }
+    throw error;
+  });
 
   app.get('/api/health', async (_request, reply): Promise<HealthStatus> => {
     const dbUp = await database.isReachable();

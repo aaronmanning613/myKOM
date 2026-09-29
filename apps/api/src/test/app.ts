@@ -1,6 +1,7 @@
 // Helpers for tests that build the app against the test database (see global-setup.ts).
 import { afterAll, inject, vi } from 'vitest';
 import { buildApp, type BuildAppOptions } from '../app.js';
+import { deleteRunner } from '../auth/runners.js';
 import { createDatabase, type Database } from '../db/client.js';
 import { DEV_TOKEN_ENCRYPTION_KEY } from '../env.js';
 import { createDbGeocodeCache } from '../geocode/cache.js';
@@ -49,6 +50,7 @@ export function buildTestApp(
     clientSecret: 'test-client-secret',
     tokenStore: createDbTokenStore(database.db, testTokenCipher),
     fetch,
+    onRevoked: (runnerId) => deleteRunner(database.db, runnerId),
   });
   const nominatimFetch = vi.fn<typeof globalThis.fetch>();
   const nominatim = createNominatimClient({
@@ -68,7 +70,7 @@ export function buildTestApp(
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,
   });
-  return { app, fetch, nominatimFetch };
+  return { app, fetch, nominatimFetch, strava };
 }
 
 /** A Strava athlete id unlikely to clash with other tests sharing the database. */

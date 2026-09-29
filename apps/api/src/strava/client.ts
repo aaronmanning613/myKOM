@@ -164,6 +164,11 @@ export type StravaClientOptions = {
   tokenStore: StravaTokenStore;
   fetch?: typeof fetch;
   now?: () => Date;
+  /**
+   * Runs before a StravaRevokedError is thrown for a Runner, so revoking myKOM on strava.com
+   * deletes their data like Disconnect does, whichever call notices it first.
+   */
+  onRevoked?: (runnerId: number) => Promise<void>;
 };
 
 export type StravaClient = ReturnType<typeof createStravaClient>;
@@ -174,7 +179,13 @@ export function createStravaClient({
   tokenStore,
   fetch: fetchFn = globalThis.fetch,
   now = () => new Date(),
+  onRevoked,
 }: StravaClientOptions) {
+  async function revoked(error: StravaRevokedError): Promise<StravaRevokedError> {
+    await onRevoked?.(error.runnerId);
+    return error;
+  }
+
   async function post(url: string, params: Record<string, string>): Promise<unknown> {
     return send(url, { method: 'POST', body: new URLSearchParams(params) });
   }
@@ -227,11 +238,13 @@ export function createStravaClient({
       return { data: map(body), rateLimits };
     } catch (error) {
       if (error instanceof StravaError && error.status === 401 && !isMissingScope(error.body)) {
-        throw new StravaRevokedError(
-          `Strava refused Runner ${runnerId}'s access token`,
-          runnerId,
-          401,
-          error.body,
+        throw await revoked(
+          new StravaRevokedError(
+            `Strava refused Runner ${runnerId}'s access token`,
+            runnerId,
+            401,
+            error.body,
+          ),
         );
       }
       throw error;
@@ -263,11 +276,13 @@ export function createStravaClient({
       body = await requestTokens({ grant_type: 'refresh_token', refresh_token: refreshToken });
     } catch (error) {
       if (error instanceof StravaError && isRejectedRefreshToken(error)) {
-        throw new StravaRevokedError(
-          `Strava rejected Runner ${runnerId}'s refresh token`,
-          runnerId,
-          error.status!,
-          error.body,
+        throw await revoked(
+          new StravaRevokedError(
+            `Strava rejected Runner ${runnerId}'s refresh token`,
+            runnerId,
+            error.status!,
+            error.body,
+          ),
         );
       }
       throw error;

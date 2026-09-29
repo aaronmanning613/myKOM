@@ -1,4 +1,5 @@
 import { buildApp } from './app.js';
+import { deleteRunner } from './auth/runners.js';
 import { createDatabase } from './db/client.js';
 import { loadRootEnvFile, readEnv, usesDevTokenEncryptionKey } from './env.js';
 import { createDbGeocodeCache } from './geocode/cache.js';
@@ -23,6 +24,8 @@ const stravaClient = createStravaClient({
   clientSecret: env.stravaClientSecret,
   tokenStore: liveTokenStore ?? createDbTokenStore(database.db, tokenCipher),
   ...(env.testMode && { fetch: testModeStravaFetch }),
+  // Revoking myKOM on strava.com deletes the Runner's data, like Disconnect (Strava API Policy).
+  onRevoked: (runnerId) => deleteRunner(database.db, runnerId),
 });
 const strava = env.liveMode ? blockDeauthorize(stravaClient) : stravaClient;
 const nominatim =

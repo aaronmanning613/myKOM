@@ -134,7 +134,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - typed errors for 429 (with retry timing) and **revoked** (`invalid_grant` on refresh, or 401).
   - Capture fixtures as described in Conventions.
   - **Check:** client tests with mocked `fetch` over the fixtures, including header parsing, 429 and revoked; a `.live.test.ts` for `getSegment` + `listActivities` (≤ 3 calls) in `pnpm test:live`.
-- [ ] **D4** Revocation cascade: a revoked token error during any Strava call made for a Runner runs the same deletion as Disconnect and ends their session, so the next request is a 401 and the web app shows the login page.
+- [x] **D4** Revocation cascade: a revoked token error during any Strava call made for a Runner runs the same deletion as Disconnect and ends their session, so the next request is a 401 and the web app shows the login page.
   - **Check:** an inject test where the fake Strava rejects the refresh with `invalid_grant`: the Runner's rows are gone and `/api/me` is 401.
 
 ### Job queue (spec: Background work and the Strava budget)
