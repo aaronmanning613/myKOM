@@ -178,7 +178,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - both are interactive calls (they use the reserve);
   - on first sign-in, run `full` plus the starred Segments fetch.
   - **Check:** seam-3 tests with a fake Strava: first sign-in stores the runs; `new` fetches only after the latest; `full` removes a deleted run and its effort contribution.
-- [ ] **N2** Profile persistence and endpoints:
+- [x] **N2** Profile persistence and endpoints:
   - after a sync, generate (C3) and store the applied generation in `fitness_profiles`, setting unpinned Benchmarks to generated values and keeping `generated_seconds` on pinned ones;
   - `GET /api/fitness-profile` returns each Benchmark with value, source, generated value and soft flag, plus the "Estimated from …" source runs and any pending suggestion;
   - `PUT` pins edited rows and unpins "use generated" ones;

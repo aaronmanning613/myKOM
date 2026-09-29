@@ -1,9 +1,18 @@
+import { vdotOf } from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
 import { STATE_COOKIE } from '../auth/routes.js';
 import { SESSION_COOKIE } from '../auth/session.js';
-import { activities, runnerSegments, runners, segmentEfforts, segments } from '../db/schema.js';
+import {
+  activities,
+  benchmarks,
+  fitnessProfiles,
+  runnerSegments,
+  runners,
+  segmentEfforts,
+  segments,
+} from '../db/schema.js';
 import { refreshRunSegments } from '../jobs/handlers.js';
 import { STRAVA_PAGE_SIZE, STRAVA_TOKEN_URL, type StravaClient } from '../strava/client.js';
 import { buildTestApp, randomAthleteId, useTestDatabase } from '../test/app.js';
@@ -173,6 +182,28 @@ describe('first sign-in', () => {
     ]);
     const [segment] = await db.select().from(segments).where(eq(segments.id, runSegment));
     expect(segment).toMatchObject({ name: `Segment ${runSegment}`, detailFetchedAt: null });
+  });
+
+  it('applies the Fitness Profile generated from the runs', async () => {
+    const athleteId = randomAthleteId();
+    const race = activity(newId(), '2026-06-01T08:00:00Z', { distance: 10_000, movingTime: 2_400 });
+    fakeStrava({ athleteId, activityPages: [[race]] });
+
+    const { runner } = await signIn(athleteId);
+
+    const [profile] = await db
+      .select()
+      .from(fitnessProfiles)
+      .where(eq(fitnessProfiles.runnerId, runner.id));
+    expect(profile).toMatchObject({ sourceActivityIds: [race.id], suggestedVdot: null });
+    expect(profile!.vdot).toBeCloseTo(vdotOf(10_000, 2_400));
+    const rows = await db.select().from(benchmarks).where(eq(benchmarks.runnerId, runner.id));
+    expect(rows).toHaveLength(13);
+    expect(rows.find((b) => b.distance === '10k')).toMatchObject({
+      seconds: 2_400,
+      source: 'generated',
+      generatedSeconds: 2_400,
+    });
   });
 
   it('does not read the activity list again on a later sign-in', async () => {

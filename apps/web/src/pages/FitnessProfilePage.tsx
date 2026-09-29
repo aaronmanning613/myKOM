@@ -54,7 +54,9 @@ async function readProfile(response: Response): Promise<FitnessProfile> {
 
 export function FitnessProfilePage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
-  const [times, setTimes] = useState<Times>(() => toTimes({ benchmarks: [] }));
+  const [times, setTimes] = useState<Times>(() =>
+    toTimes({ benchmarks: [], generation: null, suggestion: null }),
+  );
   // Errors show once a row has been left or a save attempted, not while typing a first time.
   const [touched, setTouched] = useState<ReadonlySet<BenchmarkDistanceId>>(new Set());
   const [save, setSave] = useState<SaveState>('idle');

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
+import { regenerateFitnessProfile } from '../fitness-profile/store.js';
 import { StravaRevokedError, type StravaClient } from '../strava/client.js';
 import { DeauthorizeBlockedError } from '../strava/live-mode.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
@@ -83,11 +84,14 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
       return toLogin('strava');
     }
 
-    // First sign-in (or one whose first sync failed): read every run and starred Segment.
+    // First sign-in (or one whose first sync failed): read every run and starred Segment, and
+    // apply the Fitness Profile generated from the runs.
     const runner = await findRunner(db, runnerId);
     if (runner && !runner.activitiesCheckedAt) {
       try {
-        await syncActivities({ db, strava }, runnerId, 'full');
+        const now = new Date();
+        await syncActivities({ db, strava }, runnerId, 'full', now);
+        await regenerateFitnessProfile(db, runnerId, now);
         await syncStarredSegments({ db, strava }, runnerId);
       } catch (err) {
         // The Strava client has already deleted a revoked Runner.

@@ -11,6 +11,7 @@ import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
 import { endSession } from './auth/session.js';
 import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
+import { preferencesRoutes } from './preferences/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
@@ -89,7 +90,8 @@ export function buildApp({
   });
 
   app.register(authRoutes, { db: database.db, strava, tokenCipher });
-  app.register(fitnessProfileRoutes, { db: database.db });
+  app.register(fitnessProfileRoutes, { db: database.db, strava });
+  app.register(preferencesRoutes, { db: database.db });
   app.register(searchAreaRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });

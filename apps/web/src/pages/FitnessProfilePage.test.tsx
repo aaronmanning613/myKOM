@@ -8,9 +8,25 @@ import { json, signedIn, stubApi } from '../test/api';
 
 const saved: FitnessProfile = {
   benchmarks: [
-    { distance: '1k', seconds: 222, source: 'runner', updatedAt: '2026-09-01T00:00:00.000Z' },
-    { distance: '5k', seconds: 1200, source: 'generated', updatedAt: '2026-09-01T00:00:00.000Z' },
+    {
+      distance: '1k',
+      seconds: 222,
+      source: 'runner',
+      generatedSeconds: null,
+      soft: false,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    },
+    {
+      distance: '5k',
+      seconds: 1200,
+      source: 'generated',
+      generatedSeconds: 1200,
+      soft: false,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    },
   ],
+  generation: null,
+  suggestion: null,
 };
 
 /** Echoes a PUT back as the saved profile, recording each body sent. */

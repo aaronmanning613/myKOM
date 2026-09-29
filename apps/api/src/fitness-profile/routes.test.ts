@@ -49,7 +49,7 @@ describe('GET /api/fitness-profile', () => {
   it('is empty for a new Runner', async () => {
     const res = await getProfile(await signIn());
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ benchmarks: [] });
+    expect(res.json()).toEqual({ benchmarks: [], generation: null, suggestion: null });
   });
 
   it('is 401 and clears the session once the Runner is deleted', async () => {
@@ -126,7 +126,7 @@ describe('PUT /api/fitness-profile', () => {
     expect(summary(res.json())).toEqual([{ distance: '5k', seconds: 1180, source: 'runner' }]);
 
     const cleared = await putProfile(session, { benchmarks: [] });
-    expect(cleared.json()).toEqual({ benchmarks: [] });
+    expect(cleared.json()).toEqual({ benchmarks: [], generation: null, suggestion: null });
     const rows = await db.select().from(benchmarks).where(eq(benchmarks.runnerId, session.id));
     expect(rows).toEqual([]);
   });
@@ -161,6 +161,8 @@ describe('PUT /api/fitness-profile', () => {
       distance: '1k',
       seconds: 190,
       source: 'generated',
+      generatedSeconds: null,
+      soft: false,
       updatedAt: imported.toISOString(),
     });
     expect(fiveK).toMatchObject({ distance: '5k', seconds: 1150, source: 'runner' });
@@ -214,7 +216,7 @@ describe("one Runner and another's Benchmarks", () => {
   });
 
   it("can't read them", async () => {
-    expect((await getProfile(bob)).json()).toEqual({ benchmarks: [] });
+    expect((await getProfile(bob)).json<FitnessProfile>().benchmarks).toEqual([]);
   });
 
   it("can't change or clear them", async () => {

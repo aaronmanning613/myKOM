@@ -24,7 +24,7 @@ export function json(body: unknown, status = 200): Response {
 export function stubApi(routes: Record<string, Handler>) {
   const all: Record<string, Handler> = {
     'GET /api/health': () => json({ ok: true, db: 'up' }),
-    'GET /api/fitness-profile': () => json({ benchmarks: [] }),
+    'GET /api/fitness-profile': () => json({ benchmarks: [], generation: null, suggestion: null }),
     'GET /api/search-area': () => json({ searchArea: null }),
     ...routes,
   };
