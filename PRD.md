@@ -258,7 +258,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - production config requires the spec's secrets, and disables test, live and debug routes and the IP fallback;
   - a multi-stage `Dockerfile` (the build stage runs `pnpm build`; the runtime is Node 22 slim) that listens on `$PORT`.
   - **Check:** `docker build` succeeds; running the image against the local Postgres with production env serves the web app at `/`, `/api/health` is ok, and `/api/test/login` is 404.
-- [ ] **H2** Deploy workflow and docs:
+- [x] **H2** Deploy workflow and docs:
   - a GitHub Actions workflow on push to `main`: install, typecheck/lint/test, `drizzle-kit migrate` against `DATABASE_URL`, build and push the image to Artifact Registry in `northamerica-northeast1`, and `gcloud run deploy` (max 1 instance, min 0, concurrency 80, secrets from Secret Manager), authenticating with Workload Identity Federation;
   - `docs/deploy.md` records the one-time human setup (below) as an exact checklist, including the Scheduler job and the $1 budget alert.
   - **Check:** the workflow YAML parses (use `actionlint` if available, otherwise a YAML parse) and references only secrets and variables listed in `docs/deploy.md`.

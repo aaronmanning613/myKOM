@@ -1,0 +1,111 @@
+# On every push to main: test, migrate the production database, build and push the image, and
+# deploy it to Cloud Run. Production is the only environment. The one-time setup behind every
+# secret and variable used here is in docs/deploy.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# A newer push waits for the running deploy rather than racing its migration.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  REGION: northamerica-northeast1
+  SERVICE: mykom
+  IMAGE: northamerica-northeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mykom/mykom:${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mykom
+          POSTGRES_PASSWORD: mykom
+          POSTGRES_DB: mykom
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U mykom -d mykom"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      # The API tests create their own mykom_test database next to this one.
+      DATABASE_URL: postgres://mykom:mykom@localhost:5433/mykom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # The migration runner also encrypts any plain-text Strava tokens, so it needs the
+      # production key, read from Secret Manager rather than stored in GitHub a second time.
+      - id: secrets
+        uses: google-github-actions/get-secretmanager-secrets@v2
+        with:
+          secrets: |-
+            token_encryption_key:${{ vars.GCP_PROJECT_ID }}/TOKEN_ENCRYPTION_KEY
+      - name: Migrate the database
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TOKEN_ENCRYPTION_KEY: ${{ steps.secrets.outputs.token_encryption_key }}
+
+      - name: Build and push the image
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # `^|^` makes | the list separator, so a value may contain commas.
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 1 \
+            --concurrency 80 \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRAVA_CLIENT_SECRET=STRAVA_CLIENT_SECRET:latest,TOKEN_ENCRYPTION_KEY=TOKEN_ENCRYPTION_KEY:latest" \
+            --set-env-vars "^|^STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID|NOMINATIM_USER_AGENT=$NOMINATIM_USER_AGENT|TICK_OIDC_AUDIENCE=$SERVICE_URL|TICK_SERVICE_ACCOUNT=$SCHEDULER_SERVICE_ACCOUNT"
+        env:
+          RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          STRAVA_CLIENT_ID: ${{ vars.STRAVA_CLIENT_ID }}
+          NOMINATIM_USER_AGENT: ${{ vars.NOMINATIM_USER_AGENT }}
+          SERVICE_URL: ${{ vars.SERVICE_URL }}
+          SCHEDULER_SERVICE_ACCOUNT: ${{ vars.GCP_SCHEDULER_SERVICE_ACCOUNT }}
