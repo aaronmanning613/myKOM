@@ -99,7 +99,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - PB floor = min(model, PB), only when no Benchmark is pinned;
   - Prediction Confidence with a reason: high when the PB floor set the time; otherwise low when outside the Benchmark range (including < 400 m), when |max grade| > 15%, or when the Segment is rolling; otherwise high.
   - **Check:** tests for flat vs uphill vs downhill ordering, the downhill cap, rolling → low, pinned disables the floor, the floor → high, and the steep → low reason.
-- [ ] **C7** Implausible Records:
+- [x] **C7** Implausible Records:
   - a world-record table (men's and women's; 100 m, 200 m, 400 m, 800 m, 1500 m, mile, 3000 m, 5000 m, 10,000 m, half, marathon, as constants with a source comment) is run through `predict` as a Fitness Profile (no PB floor) to get a grade-adjusted world-record time;
   - `isImplausible(record, segment, gender)` is true when record < WR time × 1.05.
   - **Check:** tests: a 160 m / 17 s KOM is **not** flagged (as the spec says); an obviously impossible record (e.g. 1 km in 1:30) is flagged; QOM uses the women's table.

@@ -1,5 +1,5 @@
 import type { BenchmarkSource } from './fitness-profile.js';
-import { flatPredictedTime } from './flat-model.js';
+import { flatPredictedTime, flatTimeAt, type FlatPoint } from './flat-model.js';
 import {
   DOWNHILL_CAP_FACTOR,
   DOWNHILL_CAP_GRADE,
@@ -71,7 +71,7 @@ function isRolling(segment: PredictSegment): boolean {
 }
 
 /** The flat distance that costs the same effort as the Segment. */
-function equivalentFlatMetres(segment: PredictSegment): number {
+export function equivalentFlatMetres(segment: PredictSegment): number {
   const graded = segment.metres * gradeFactor(segment.averageGrade);
   if (!isRolling(segment)) return graded;
   // TODO(decision): "excess climb" is the climbing beyond the net gain (which the average grade
@@ -106,4 +106,15 @@ export function predict(
   if (Math.abs(segment.maximumGrade) > LOW_CONFIDENCE_MAX_GRADE) return low('steep');
   if (isRolling(segment)) return low('rolling');
   return { seconds: flat.seconds, confidence: 'high', reason: 'within-range' };
+}
+
+/**
+ * The grade-adjusted time for a Segment from any known flat times (e.g. world records), through
+ * the same model as `predict` with no PB floor. Null when fewer than two points are usable.
+ */
+export function gradeAdjustedTime(
+  points: readonly FlatPoint[],
+  segment: PredictSegment,
+): number | null {
+  return flatTimeAt(points, equivalentFlatMetres(segment))?.seconds ?? null;
 }

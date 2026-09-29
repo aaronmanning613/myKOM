@@ -3,6 +3,7 @@ export * from './benchmarks.js';
 export * from './fitness-profile.js';
 export * from './flat-model.js';
 export * from './geocode.js';
+export * from './implausible.js';
 export * from './locate-ip.js';
 export * from './predict.js';
 export * from './profile-generation.js';
