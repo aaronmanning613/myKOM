@@ -66,26 +66,12 @@ function emptyMain() {
 
 // ─── A: Table ────────────────────────────────────────────────────────────────────────────────
 
-export function VariantA({ results, margin, setMargin, radiusKm, setRadiusKm }: VariantProps) {
+export function VariantA({ results, radiusKm, setRadiusKm }: VariantProps) {
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-2xl font-bold">Results</h1>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="flex items-center gap-1">
-            <span className="text-gray-600">Margin</span>
-            <select
-              className="rounded border border-gray-300 px-2 py-1"
-              value={margin}
-              onChange={(e) => setMargin(Number(e.target.value) as Margin)}
-            >
-              {MARGIN_PRESETS.map((m) => (
-                <option key={m} value={m}>
-                  {m}%
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="flex items-center gap-1">
             <span className="text-gray-600">Within</span>
             <select
@@ -116,7 +102,7 @@ export function VariantA({ results, margin, setMargin, radiusKm, setRadiusKm }: 
       {results.nearestMisses.length > 0 && (
         <TableSection
           title="Nearest misses"
-          subtitle="Not quite in reach yet: the smallest gaps to the record."
+          subtitle="Not quite in reach yet: the closest to the record."
           rows={results.nearestMisses}
         />
       )}
@@ -161,8 +147,7 @@ function TableSection({
                 <th className="py-1 pr-2 text-right">Athletes</th>
                 <th className="py-1 pr-2 text-right">Record</th>
                 <th className="py-1 pr-2 text-right">Predicted</th>
-                <th className="py-1 pr-2 text-right">Your PB</th>
-                <th className="py-1 text-right">Gap</th>
+                <th className="py-1 text-right">Your PB</th>
               </tr>
             </thead>
             <tbody>
@@ -173,7 +158,6 @@ function TableSection({
                       {r.held && <Crown />}
                       {r.name}
                       {r.implausible && <ImplausibleFlag short />}
-                      {r.lowConfidence && <LowConfidence reason={r.lowConfidenceReason!} />}
                     </div>
                     <div className="text-xs text-gray-500">
                       {formatDistance(r.distanceM)} · {formatGrade(r.avgGrade)} · {r.kmFromCentre}{' '}
@@ -186,15 +170,15 @@ function TableSection({
                   <td className="py-2 pr-2 text-right tabular-nums">
                     {formatTime(r.targetRecordS)}
                   </td>
-                  <td className="py-2 pr-2 text-right tabular-nums">
+                  <td
+                    className="py-2 pr-2 text-right tabular-nums"
+                    title={r.lowConfidenceReason ?? undefined}
+                  >
                     {r.lowConfidence && '~'}
                     {formatTime(r.predictedS)}
                   </td>
-                  <td className="py-2 pr-2 text-right text-gray-600 tabular-nums">
+                  <td className="py-2 text-right text-gray-600 tabular-nums">
                     {r.pbS === null ? '—' : formatTime(r.pbS)}
-                  </td>
-                  <td className={`py-2 text-right font-medium whitespace-nowrap ${gapClass(r)}`}>
-                    {gapLabel(r)}
                   </td>
                 </tr>
               ))}

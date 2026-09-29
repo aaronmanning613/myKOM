@@ -27,7 +27,7 @@ export function ResultsPage() {
 
   return (
     <>
-      {variant === 'A' && <VariantA {...props} />}
+      {variant === 'A' && <VariantA {...props} margin={5} />}
       {variant === 'B' && <VariantB {...props} />}
       {variant === 'C' && <VariantC {...props} />}
       <div className="h-16" />
