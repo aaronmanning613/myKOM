@@ -5,6 +5,7 @@ import { FitnessProfilePage } from './pages/FitnessProfilePage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { OnboardingPrototype } from './pages/onboarding-prototype/OnboardingPrototype';
 import { ResultsPage } from './pages/ResultsPage';
 import { SearchAreaPage } from './pages/SearchAreaPage';
 
@@ -19,6 +20,8 @@ export const routes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           { path: 'fitness-profile', element: <FitnessProfilePage /> },
+          // PROTOTYPE (branch prototype/onboarding): /fitness-profile/prototype?variant=A|B|C
+          { path: 'fitness-profile/prototype', element: <OnboardingPrototype /> },
           { path: 'search-area', element: <SearchAreaPage /> },
           { path: 'results', element: <ResultsPage /> },
         ],
