@@ -14,11 +14,19 @@ export const DEFAULT_DATABASE_URL = 'postgres://mykom:mykom@localhost:5433/mykom
 /** Signs cookies outside production when SESSION_SECRET isn't set. Never used in production. */
 export const DEV_SESSION_SECRET = 'mykom-dev-only-session-secret-do-not-use-in-production';
 
+/** Encrypts Strava tokens outside production when TOKEN_ENCRYPTION_KEY isn't set. Never used in production. */
+export const DEV_TOKEN_ENCRYPTION_KEY = Buffer.from('mykom-dev-only-token-key-32bytes', 'utf8');
+
 export type Env = {
   host: string;
   port: number;
   databaseUrl: string;
   sessionSecret: string;
+  /**
+   * TOKEN_ENCRYPTION_KEY (32 bytes, base64): encrypts Strava tokens at rest. Required in
+   * production; DEV_TOKEN_ENCRYPTION_KEY otherwise.
+   */
+  tokenEncryptionKey: Buffer;
   stravaClientId: string;
   stravaClientSecret: string;
   /** NOMINATIM_USER_AGENT: names the app and a contact. Place search is off while it's unset. */
@@ -60,6 +68,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error('SESSION_SECRET must be at least 32 characters');
   }
   const notProduction = source.NODE_ENV !== 'production';
+  const tokenEncryptionKey = parseTokenEncryptionKey(source.TOKEN_ENCRYPTION_KEY, notProduction);
   const testMode = notProduction && (source.NODE_ENV === 'test' || source.E2E === '1');
   const liveMode = notProduction && source.E2E_LIVE === '1';
   if (testMode && liveMode) {
@@ -70,6 +79,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     port,
     databaseUrl: source.DATABASE_URL || DEFAULT_DATABASE_URL,
     sessionSecret,
+    tokenEncryptionKey,
     stravaClientId: source.STRAVA_CLIENT_ID ?? '',
     stravaClientSecret: source.STRAVA_CLIENT_SECRET ?? '',
     nominatimUserAgent: source.NOMINATIM_USER_AGENT?.trim() || undefined,
@@ -81,6 +91,26 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     testMode,
     liveMode,
   };
+}
+
+function parseTokenEncryptionKey(value: string | undefined, notProduction: boolean): Buffer {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed === '') {
+    if (notProduction) return DEV_TOKEN_ENCRYPTION_KEY;
+    throw new Error('TOKEN_ENCRYPTION_KEY must be set in production');
+  }
+  const key = Buffer.from(trimmed, 'base64');
+  if (key.length !== 32 || key.toString('base64') !== trimmed) {
+    throw new Error(
+      'TOKEN_ENCRYPTION_KEY must be 32 bytes, base64-encoded (e.g. `openssl rand -base64 32`)',
+    );
+  }
+  return key;
+}
+
+/** True when Strava tokens are encrypted with the development key, so the server can warn. */
+export function usesDevTokenEncryptionKey(env: Pick<Env, 'tokenEncryptionKey'>): boolean {
+  return env.tokenEncryptionKey.equals(DEV_TOKEN_ENCRYPTION_KEY);
 }
 
 function parseTrustProxy(value: string | undefined): Env['trustProxy'] {

@@ -2,14 +2,19 @@
 import { afterAll, inject, vi } from 'vitest';
 import { buildApp, type BuildAppOptions } from '../app.js';
 import { createDatabase, type Database } from '../db/client.js';
+import { DEV_TOKEN_ENCRYPTION_KEY } from '../env.js';
 import { createDbGeocodeCache } from '../geocode/cache.js';
 import { createNominatimClient } from '../geocode/nominatim.js';
 import { createThrottle } from '../geocode/throttle.js';
 import type { IpLocator } from '../locate-ip/locator.js';
 import { createStravaClient } from '../strava/client.js';
+import { createTokenCipher } from '../strava/token-cipher.js';
 import { createDbTokenStore } from '../strava/token-store.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret-at-least-32-characters';
+
+/** Encrypts Strava tokens in test apps (global-setup migrates with the same key). */
+export const testTokenCipher = createTokenCipher(DEV_TOKEN_ENCRYPTION_KEY);
 
 /** A connection to the test database, closed after the file's tests. */
 export function useTestDatabase(): Database {
@@ -42,7 +47,7 @@ export function buildTestApp(
   const strava = createStravaClient({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
-    tokenStore: createDbTokenStore(database.db),
+    tokenStore: createDbTokenStore(database.db, testTokenCipher),
     fetch,
   });
   const nominatimFetch = vi.fn<typeof globalThis.fetch>();
@@ -56,6 +61,7 @@ export function buildTestApp(
   const app = buildApp({
     database,
     strava,
+    tokenCipher: testTokenCipher,
     nominatim: withNominatim ? nominatim : undefined,
     ipLocator,
     trustProxy,

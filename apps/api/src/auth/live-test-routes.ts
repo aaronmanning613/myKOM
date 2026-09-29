@@ -8,6 +8,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '../db/client.js';
 import { StravaError, type StravaClient } from '../strava/client.js';
 import { LiveTokenError, type LiveTokenStore } from '../strava/live-token-store.js';
+import type { TokenCipher } from '../strava/token-cipher.js';
 import type { Me } from './routes.js';
 import { upsertRunnerFromStrava } from './runners.js';
 import { startSession } from './session.js';
@@ -17,6 +18,7 @@ export type LiveTestRoutesOptions = {
   /** Must use `liveTokenStore` as its token store (see server.ts). */
   strava: StravaClient;
   liveTokenStore: LiveTokenStore;
+  tokenCipher: TokenCipher;
 };
 
 /**
@@ -30,7 +32,7 @@ const LIVE_RUNNER = 0;
 
 export const liveTestRoutes: FastifyPluginAsync<LiveTestRoutesOptions> = async (
   app,
-  { db, strava, liveTokenStore },
+  { db, strava, liveTokenStore, tokenCipher },
 ) => {
   // Signs the real Runner in: a valid access token (refreshed if needed), the real athlete from
   // Strava, then the same upsert as the OAuth callback.
@@ -57,6 +59,7 @@ export const liveTestRoutes: FastifyPluginAsync<LiveTestRoutesOptions> = async (
 
     const runnerId = await upsertRunnerFromStrava(
       db,
+      tokenCipher,
       {
         athlete,
         accessToken: LIVE_TOKEN_PLACEHOLDER,

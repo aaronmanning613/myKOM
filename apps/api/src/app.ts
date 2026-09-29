@@ -12,11 +12,14 @@ import { locateIpRoutes } from './locate-ip/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import type { StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
+import type { TokenCipher } from './strava/token-cipher.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
   database: Pick<Database, 'db' | 'isReachable'>;
   strava: StravaClient;
+  /** Encrypts Strava tokens at rest. `strava`'s token store must use the same one. */
+  tokenCipher: TokenCipher;
   /** Backs `GET /api/geocode`; without it, place search replies 503. */
   nominatim?: NominatimClient;
   /** Backs `GET /api/locate-ip`; without it, the lookup replies `{ available: false }`. */
@@ -43,6 +46,7 @@ export function buildApp({
   logger = false,
   database,
   strava,
+  tokenCipher,
   nominatim,
   ipLocator,
   trustProxy = false,
@@ -59,13 +63,15 @@ export function buildApp({
     return { ok: dbUp, db: dbUp ? 'up' : 'down' };
   });
 
-  app.register(authRoutes, { db: database.db, strava });
+  app.register(authRoutes, { db: database.db, strava, tokenCipher });
   app.register(fitnessProfileRoutes, { db: database.db });
   app.register(searchAreaRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });
   app.register(locateIpRoutes, { db: database.db, ipLocator });
-  if (enableTestRoutes) app.register(testRoutes, { db: database.db });
-  if (liveTokenStore) app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore });
+  if (enableTestRoutes) app.register(testRoutes, { db: database.db, tokenCipher });
+  if (liveTokenStore) {
+    app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore, tokenCipher });
+  }
 
   return app;
 }

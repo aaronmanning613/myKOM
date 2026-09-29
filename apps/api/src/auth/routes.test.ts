@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest';
 import { runners, stravaTokens } from '../db/schema.js';
 import { STRAVA_AUTHORIZE_URL, STRAVA_DEAUTHORIZE_URL } from '../strava/client.js';
-import { buildTestApp, randomAthleteId, useTestDatabase } from '../test/app.js';
+import { buildTestApp, randomAthleteId, testTokenCipher, useTestDatabase } from '../test/app.js';
 import { STATE_COOKIE } from './routes.js';
 import { SESSION_COOKIE } from './session.js';
 
@@ -114,12 +114,15 @@ describe('GET /api/auth/strava/callback', () => {
       .from(stravaTokens)
       .where(eq(stravaTokens.runnerId, runner!.id));
     expect(tokens).toMatchObject({
-      accessToken: 'access-1',
-      refreshToken: 'refresh-1',
       expiresAt: new Date(2_000_000_000 * 1000),
       // Only what the Runner actually granted, not everything myKOM asked for.
       grantedScopes: ['read', 'activity:read_all'],
     });
+    // Encrypted at rest.
+    expect(tokens!.accessToken).not.toContain('access-1');
+    expect(tokens!.refreshToken).not.toContain('refresh-1');
+    expect(testTokenCipher.decrypt(tokens!.accessToken)).toBe('access-1');
+    expect(testTokenCipher.decrypt(tokens!.refreshToken)).toBe('refresh-1');
   });
 
   it('updates the same Runner when they sign in again', async () => {
@@ -148,7 +151,8 @@ describe('GET /api/auth/strava/callback', () => {
       .select()
       .from(stravaTokens)
       .where(eq(stravaTokens.runnerId, rows[0]!.id));
-    expect(tokens).toMatchObject({ accessToken: 'access-2', grantedScopes: ['read'] });
+    expect(testTokenCipher.decrypt(tokens!.accessToken)).toBe('access-2');
+    expect(tokens!.grantedScopes).toEqual(['read']);
   });
 
   it('rejects a state that does not match the cookie', async () => {
@@ -304,6 +308,29 @@ describe('POST /api/auth/disconnect', () => {
       cookies: { [SESSION_COOKIE]: session },
     });
     expect(me.statusCode).toBe(401);
+  });
+
+  it('refreshes an expired stored token before deauthorizing', async () => {
+    const athleteId = randomAthleteId();
+    athleteIds.push(athleteId);
+    fetch.mockResolvedValueOnce(tokenResponse(athleteId, { expires_at: 1_000_000_000 }));
+    const { cookie, state } = await startSignIn();
+    const login = await callback({ code: 'the-code', state, scope: 'read' }, cookie.value);
+    const session = login.cookies.find((c) => c.name === SESSION_COOKIE)!.value;
+    fetch
+      .mockResolvedValueOnce(
+        Response.json({ access_token: 'access-2', refresh_token: 'refresh-2', expires_at: 2e9 }),
+      )
+      .mockResolvedValueOnce(Response.json({}));
+
+    const res = await disconnect(session);
+
+    expect(res.statusCode).toBe(204);
+    const [refreshBody, deauthorizeBody] = fetch.mock.calls
+      .slice(1)
+      .map(([, init]) => init!.body as URLSearchParams);
+    expect(refreshBody!.get('refresh_token')).toBe('refresh-1');
+    expect(deauthorizeBody!.get('access_token')).toBe('access-2');
   });
 
   it("still deletes the Runner's data when Strava's deauthorize fails", async () => {

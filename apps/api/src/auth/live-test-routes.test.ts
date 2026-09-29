@@ -17,6 +17,7 @@ import {
   TEST_SESSION_SECRET,
   buildTestApp,
   randomAthleteId,
+  testTokenCipher,
   useTestDatabase,
 } from '../test/app.js';
 import { LIVE_TOKEN_PLACEHOLDER } from './live-test-routes.js';
@@ -75,7 +76,13 @@ function buildLiveApp() {
   const strava = blockDeauthorize(
     createStravaClient({ clientId: '123', clientSecret: 'shh', tokenStore: liveTokenStore, fetch }),
   );
-  const app = buildApp({ database, strava, sessionSecret: TEST_SESSION_SECRET, liveTokenStore });
+  const app = buildApp({
+    database,
+    strava,
+    tokenCipher: testTokenCipher,
+    sessionSecret: TEST_SESSION_SECRET,
+    liveTokenStore,
+  });
   return { app, fetch };
 }
 
@@ -120,11 +127,10 @@ describe('POST /api/test/login-live', () => {
     const [runner] = await db.select().from(runners).where(eq(runners.id, me.id));
     expect(runner).toMatchObject({ stravaAthleteId: athleteId, firstName: 'Faith', sex: 'F' });
     const [tokens] = await db.select().from(stravaTokens).where(eq(stravaTokens.runnerId, me.id));
-    expect(tokens).toMatchObject({
-      accessToken: LIVE_TOKEN_PLACEHOLDER,
-      refreshToken: LIVE_TOKEN_PLACEHOLDER,
-      grantedScopes: ['read', 'activity:read_all'],
-    });
+    expectNoSecrets(JSON.stringify(tokens));
+    expect(testTokenCipher.decrypt(tokens!.accessToken)).toBe(LIVE_TOKEN_PLACEHOLDER);
+    expect(testTokenCipher.decrypt(tokens!.refreshToken)).toBe(LIVE_TOKEN_PLACEHOLDER);
+    expect(tokens!.grantedScopes).toEqual(['read', 'activity:read_all']);
 
     const session = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
     const meRes = await app.inject({

@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
 import type { StravaClient } from '../strava/client.js';
 import { DeauthorizeBlockedError } from '../strava/live-mode.js';
+import type { TokenCipher } from '../strava/token-cipher.js';
 import { requireRunner } from './guard.js';
 import { deleteRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
@@ -24,6 +25,8 @@ export type LoginError = 'access_denied' | 'invalid_state' | 'strava';
 export type AuthRoutesOptions = {
   db: Database['db'];
   strava: StravaClient;
+  /** Encrypts the tokens saved at sign-in. */
+  tokenCipher: TokenCipher;
 };
 
 type CallbackQuery = { code?: string; state?: string; scope?: string; error?: string };
@@ -33,7 +36,10 @@ function callbackUrl(request: FastifyRequest): string {
   return `${request.protocol}://${request.host}/api/auth/strava/callback`;
 }
 
-export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { db, strava }) => {
+export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
+  app,
+  { db, strava, tokenCipher },
+) => {
   app.get('/api/auth/strava', async (request, reply) => {
     const state = randomBytes(24).toString('base64url');
     reply.setCookie(STATE_COOKIE, state, {
@@ -65,7 +71,12 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
     const grantedScopes = (scope ?? '').split(',').filter(Boolean);
     let runnerId: number;
     try {
-      runnerId = await upsertRunnerFromStrava(db, await strava.exchangeCode(code), grantedScopes);
+      runnerId = await upsertRunnerFromStrava(
+        db,
+        tokenCipher,
+        await strava.exchangeCode(code),
+        grantedScopes,
+      );
     } catch (err) {
       request.log.error(err, 'Strava sign-in failed');
       return toLogin('strava');

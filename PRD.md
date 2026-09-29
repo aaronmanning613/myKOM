@@ -115,7 +115,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Data and Strava (spec: Data model, Background work, Strava API Policy stance)
 
-- [ ] **D1** Token encryption:
+- [x] **D1** Token encryption:
   - Strava access and refresh tokens are stored AES-256-GCM encrypted, with the key from `TOKEN_ENCRYPTION_KEY` (32 bytes, base64; add it to `.env.example`);
   - it's required when `NODE_ENV=production`; outside production, fall back to a fixed dev key and log a warning;
   - a migration encrypts existing plain-text rows.

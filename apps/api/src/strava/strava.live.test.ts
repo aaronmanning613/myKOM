@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { upsertRunnerFromStrava } from '../auth/runners.js';
 import { runners, stravaTokens, type Runner } from '../db/schema.js';
 import { loadRootEnvFile, readEnv } from '../env.js';
-import { useTestDatabase } from '../test/app.js';
+import { testTokenCipher, useTestDatabase } from '../test/app.js';
 import {
   REFRESH_WINDOW_MS,
   STRAVA_ATHLETE_URL,
@@ -158,7 +158,12 @@ describe.skipIf(skipReason !== undefined)('live Strava account', () => {
     let savedScopes: string[] | undefined;
     await database.db
       .transaction(async (tx) => {
-        const runnerId = await upsertRunnerFromStrava(tx, { ...tokens!, athlete }, grantedScopes);
+        const runnerId = await upsertRunnerFromStrava(
+          tx,
+          testTokenCipher,
+          { ...tokens!, athlete },
+          grantedScopes,
+        );
         [runner] = await tx.select().from(runners).where(eq(runners.id, runnerId));
         const [tokenRow] = await tx
           .select({ grantedScopes: stravaTokens.grantedScopes })
