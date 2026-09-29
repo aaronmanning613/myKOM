@@ -103,7 +103,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - a world-record table (men's and women's; 100 m, 200 m, 400 m, 800 m, 1500 m, mile, 3000 m, 5000 m, 10,000 m, half, marathon, as constants with a source comment) is run through `predict` as a Fitness Profile (no PB floor) to get a grade-adjusted world-record time;
   - `isImplausible(record, segment, gender)` is true when record < WR time × 1.05.
   - **Check:** tests: a 160 m / 17 s KOM is **not** flagged (as the spec says); an obviously impossible record (e.g. 1 km in 1:30) is flagged; QOM uses the women's table.
-- [ ] **C8** `rank(input)`, as sketched in the spec's Ranking section:
+- [x] **C8** `rank(input)`, as sketched in the spec's Ranking section:
   - area membership by the start point's great-circle distance;
   - the exclusion reasons, in order;
   - Your targets = Achievable (≤ record × 1.05) + all Held, minus non-Held Implausible; high confidence first, then Impressiveness desc, record ratio asc, id;
