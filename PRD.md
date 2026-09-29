@@ -139,7 +139,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Job queue (spec: Background work and the Strava budget)
 
-- [ ] **J1** Queue core:
+- [x] **J1** Queue core:
   - enqueue with kind, target, Runner, crawl and priority (search > new-run > mapping > freshness), with de-duplication of identical pending jobs;
   - `drain({ deadline, now, strava })` claims with `FOR UPDATE SKIP LOCKED`, runs handlers by kind, and records success, retry (attempts, backoff via `not_before`) or failure;
   - handlers are registered by kind.

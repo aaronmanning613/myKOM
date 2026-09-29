@@ -1,8 +1,11 @@
 // Helpers for tests that build the app against the test database (see global-setup.ts).
-import { afterAll, inject, vi } from 'vitest';
+import postgres from 'postgres';
+import { afterAll, beforeAll, inject, vi } from 'vitest';
 import { buildApp, type BuildAppOptions } from '../app.js';
 import { deleteRunner } from '../auth/runners.js';
 import { createDatabase, type Database } from '../db/client.js';
+import { ensureDatabase } from '../db/ensure-database.js';
+import { runMigrations } from '../db/migrations.js';
 import { DEV_TOKEN_ENCRYPTION_KEY } from '../env.js';
 import { createDbGeocodeCache } from '../geocode/cache.js';
 import { createNominatimClient } from '../geocode/nominatim.js';
@@ -22,6 +25,36 @@ export function useTestDatabase(): Database {
   const database = createDatabase(inject('testDatabaseUrl'));
   afterAll(() => database.close());
   return database;
+}
+
+/**
+ * A fresh, migrated database of the file's own, dropped after its tests. For tests that drain
+ * the job queue: a drain claims any runnable job, so other files' jobs in the shared test
+ * database would get in the way.
+ */
+export function useOwnTestDatabase(): { database: () => Database } {
+  const url = new URL(inject('testDatabaseUrl'));
+  url.pathname = `/mykom_test_${process.pid}_${Date.now()}`;
+  let database: Database | undefined;
+  beforeAll(async () => {
+    await ensureDatabase(url.toString());
+    database = createDatabase(url.toString());
+    await runMigrations(database.db, testTokenCipher);
+  });
+  afterAll(async () => {
+    await database?.close();
+    const adminUrl = new URL(url);
+    adminUrl.pathname = '/postgres';
+    const admin = postgres(adminUrl.toString(), { onnotice: () => {} });
+    await admin.unsafe(`drop database if exists "${url.pathname.slice(1)}"`);
+    await admin.end();
+  });
+  return {
+    database: () => {
+      if (!database) throw new Error('The database is ready only inside tests and hooks');
+      return database;
+    },
+  };
 }
 
 /**

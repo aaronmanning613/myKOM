@@ -22,6 +22,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 const timestamps = {
@@ -348,6 +349,11 @@ export const stravaJobs = pgTable(
     index('strava_jobs_claim_idx').on(table.status, table.priority, table.notBefore),
     index('strava_jobs_runner_idx').on(table.runnerId),
     index('strava_jobs_crawl_idx').on(table.crawlId),
+    // At most one pending job per kind, Runner and target: enqueueing a duplicate raises the
+    // existing job's priority instead.
+    uniqueIndex('strava_jobs_pending_unique')
+      .on(table.kind, table.runnerId, sql`coalesce(${table.target}, -1)`)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 
