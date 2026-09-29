@@ -93,7 +93,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - extrapolation past either end uses the two nearest Benchmarks' exponent clamped to 1.02–1.15, and is low confidence;
   - return the soft set so the UI can flag it.
   - **Check:** tests for interpolation exactness at Benchmark points, extrapolation both ends with clamping, soft detection, and < 2 usable → no prediction.
-- [ ] **C6** Grade and the full `predict(benchmarks, segment, pb)`:
+- [x] **C6** Grade and the full `predict(benchmarks, segment, pb)`:
   - equivalent flat distance: uphill uses Minetti `Cr(i)/3.6`; downhill is capped at 0.88 around −9.5%, easing linearly back to 1.0 by −20% (a starting value);
   - rolling penalty (starting values from the spec);
   - PB floor = min(model, PB), only when no Benchmark is pinned;
