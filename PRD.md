@@ -70,7 +70,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - `benchmarksFromVdot(vdot)` giving all 13;
   - `updateAllFrom(distance, seconds)`.
   - **Check:** table tests reproduce the spec's numbers: VDOT 71.1 → 5K 14:43, 10K 30:36, marathon 2:21:16; a 16:00 5K → 10K 33:13, half 1:13:19, marathon 2:33:26 (±1 s).
-- [ ] **C3** `generateFitnessProfile(activities, now)`:
+- [x] **C3** `generateFitnessProfile(activities, now)`:
   - use runs only, from the last 3 years;
   - for each distance D, use runs in the 0.98 D–1.06 D band, scale to D by moving time × D ÷ distance, and take the fastest;
   - score them by VDOT and average the best two, but the second only counts if it's within 8 of the best;
