@@ -1,0 +1,54 @@
+[
+  {
+    "id": 20377567085,
+    "name": "Morning Run",
+    "type": "Run",
+    "sport_type": "Run",
+    "start_date": "2026-09-29T11:11:55Z",
+    "distance": 17027.7,
+    "moving_time": 4687,
+    "elapsed_time": 4856,
+    "map": {
+      "summary_polyline": "cijiGx{tcNaApoAqKd]wTh\\zd@_iC"
+    }
+  },
+  {
+    "id": 20295654760,
+    "name": "Wu",
+    "type": "Run",
+    "sport_type": "Run",
+    "start_date": "2026-09-23T12:06:30Z",
+    "distance": 3500,
+    "moving_time": 1050,
+    "elapsed_time": 1050,
+    "map": {
+      "summary_polyline": ""
+    }
+  },
+  {
+    "id": 20302652195,
+    "name": "Flavour of the Weak",
+    "type": "Workout",
+    "sport_type": "Workout",
+    "start_date": "2026-09-23T20:37:47Z",
+    "distance": 0,
+    "moving_time": 3602,
+    "elapsed_time": 3602,
+    "map": {
+      "summary_polyline": ""
+    }
+  },
+  {
+    "id": 20274514043,
+    "name": "Afternoon Ride",
+    "type": "Ride",
+    "sport_type": "Ride",
+    "start_date": "2026-09-21T20:50:11Z",
+    "distance": 43213.6,
+    "moving_time": 5393,
+    "elapsed_time": 6323,
+    "map": {
+      "summary_polyline": "cijiGx{tcNaApoAqKd]wTh\\zd@_iC"
+    }
+  }
+]

@@ -1,0 +1,111 @@
+{
+  "id": 20377567085,
+  "name": "Morning Run",
+  "type": "Run",
+  "sport_type": "Run",
+  "start_date": "2026-09-29T11:11:55Z",
+  "distance": 17027.7,
+  "moving_time": 4687,
+  "elapsed_time": 4856,
+  "map": {
+    "summary_polyline": "cijiGx{tcNaApoAqKd]wTh\\zd@_iC"
+  },
+  "segment_efforts": [
+    {
+      "id": 3539994790397326017,
+      "activity": {
+        "id": 20377567085
+      },
+      "name": "Joe Shuster Wayyy",
+      "elapsed_time": 131,
+      "moving_time": 131,
+      "start_date": "2026-09-29T11:18:01Z",
+      "distance": 499.9,
+      "kom_rank": null,
+      "pr_rank": 2,
+      "achievements": [
+        {
+          "type_id": 3,
+          "type": "pr",
+          "rank": 2
+        }
+      ],
+      "segment": {
+        "id": 8793341,
+        "name": "Joe Shuster Wayyy",
+        "activity_type": "Run",
+        "distance": 499.9,
+        "average_grade": 1.2,
+        "maximum_grade": 3.3,
+        "elevation_high": 90.8,
+        "elevation_low": 84.9,
+        "start_latlng": [43.639712, -79.42358],
+        "end_latlng": [43.641716, -79.428409],
+        "hazardous": false,
+        "starred": false
+      }
+    },
+    {
+      "id": 3539994790397327017,
+      "activity": {
+        "id": 20377567085
+      },
+      "name": "Ronce-Pearson-Sorauren",
+      "elapsed_time": 109,
+      "moving_time": 109,
+      "start_date": "2026-09-29T11:26:49Z",
+      "distance": 423.2,
+      "kom_rank": null,
+      "pr_rank": null,
+      "achievements": [],
+      "segment": {
+        "id": 20401968,
+        "name": "Ronce-Pearson-Sorauren",
+        "activity_type": "Run",
+        "distance": 423.2,
+        "average_grade": -0.6,
+        "maximum_grade": 0.6,
+        "elevation_high": 95.9,
+        "elevation_low": 93.4,
+        "start_latlng": [43.642963, -79.442233],
+        "end_latlng": [43.641967, -79.447063],
+        "hazardous": false,
+        "starred": false
+      }
+    },
+    {
+      "id": 3539994790397328017,
+      "activity": {
+        "id": 20377567085
+      },
+      "name": "PDRC Spring Road 5 Times",
+      "elapsed_time": 453,
+      "moving_time": 449,
+      "start_date": "2026-09-29T11:39:24Z",
+      "distance": 2228.4,
+      "kom_rank": 5,
+      "pr_rank": null,
+      "achievements": [
+        {
+          "type_id": 2,
+          "type": "overall",
+          "rank": 5
+        }
+      ],
+      "segment": {
+        "id": 40464681,
+        "name": "PDRC Spring Road 5 Times",
+        "activity_type": "Run",
+        "distance": 2228.4,
+        "average_grade": 0.8,
+        "maximum_grade": 15.1,
+        "elevation_high": 99.4,
+        "elevation_low": 78,
+        "start_latlng": [43.651349, -79.461018],
+        "end_latlng": [43.65213, -79.463913],
+        "hazardous": false,
+        "starred": false
+      }
+    }
+  ]
+}

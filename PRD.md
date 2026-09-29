@@ -127,7 +127,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - new tables: `fitness_profiles`, `activities`, `segments` (shared, with a start lat/lng bounding-box index), `runner_segments`, `mapped_areas`, `crawls`, `strava_jobs`, `strava_read_usage`, `app_state`;
   - every per-Runner table cascades from `runners`.
   - **Check:** the migration applies to a DB with foundation data; the disconnect test now asserts every per-Runner table is emptied and a shared `segments` row survives.
-- [ ] **D3** Strava client reads, all through the existing client:
+- [x] **D3** Strava client reads, all through the existing client:
   - `listActivities({ after?, page })`, `getActivity(id)`, `getSegment(id)` and `getStarredSegments(page)`;
   - each maps to our own shapes (activity summary with polyline and bbox; efforts with the embedded summary Segment, achievements and `kom_rank`; Segment detail with `xoms`, `athlete_count`, `hazardous`, geometry and `athlete_segment_stats`), with no raw JSON kept;
   - parse the `x-ratelimit-*` / `x-readratelimit-*` headers into every result;
