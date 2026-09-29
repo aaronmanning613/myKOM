@@ -1,7 +1,13 @@
+import { TICK_INTERVAL_MINUTES } from '@mykom/shared';
 import { buildApp } from './app.js';
 import { deleteRunner } from './auth/runners.js';
 import { createDatabase } from './db/client.js';
 import { recordRead } from './jobs/budget.js';
+import { onCrawlJobFinished } from './jobs/crawls.js';
+import { createStravaJobHandlers } from './jobs/handlers.js';
+import { createJobQueue } from './jobs/queue.js';
+import { createTick } from './jobs/tick.js';
+import { createGoogleOidcVerifier } from './internal/google-oidc.js';
 import { loadRootEnvFile, readEnv, usesDevTokenEncryptionKey } from './env.js';
 import { createDbGeocodeCache } from './geocode/cache.js';
 import { createNominatimClient } from './geocode/nominatim.js';
@@ -45,6 +51,12 @@ try {
 } catch (error) {
   ipLocatorError = error;
 }
+// Handlers log through the app's logger, which exists only once the app is built.
+const jobLog = { warn: (details: object, message: string) => app.log.warn(details, message) };
+const queue = createJobQueue(database.db, createStravaJobHandlers({ log: jobLog }), {
+  onFinished: onCrawlJobFinished,
+});
+const tick = createTick({ db: database.db, queue, strava });
 const app = buildApp({
   logger: true,
   database,
@@ -56,6 +68,11 @@ const app = buildApp({
   sessionSecret: env.sessionSecret,
   testRoutes: env.testMode,
   liveTokenStore,
+  tick: {
+    tick: () => tick(),
+    verifyToken: env.tickOidc && createGoogleOidcVerifier(env.tickOidc),
+    allowWithoutToken: env.testMode,
+  },
 });
 if (env.testMode) app.log.warn('Test mode: test-only routes are on and Strava is stubbed');
 if (env.liveMode) {
@@ -72,7 +89,29 @@ if (ipLocatorError) {
     `No GeoLite2 City database at ${env.geolite2CityDbPath}, so IP location is unavailable (run pnpm geolite2:update)`,
   );
 }
-app.addHook('onClose', () => database.close());
+if (env.production && !env.tickOidc) {
+  app.log.warn(
+    'TICK_OIDC_AUDIENCE / TICK_SERVICE_ACCOUNT are not set, so /internal/tick refuses every call',
+  );
+}
+// Outside production there's no Cloud Scheduler: the server ticks itself.
+let tickTimer: NodeJS.Timeout | undefined;
+if (!env.production) {
+  tickTimer = setInterval(
+    () => {
+      tick().then(
+        (result) => app.log.info(result, 'Tick'),
+        (error: unknown) => app.log.error(error, 'Tick failed'),
+      );
+    },
+    TICK_INTERVAL_MINUTES * 60 * 1000,
+  );
+  tickTimer.unref();
+}
+app.addHook('onClose', async () => {
+  clearInterval(tickTimer);
+  await database.close();
+});
 
 try {
   await app.listen({ host: env.host, port: env.port });

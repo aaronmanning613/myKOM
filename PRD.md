@@ -165,7 +165,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - track progress ("N of ~M") and status on `crawls`.
   - A Mapped Area crawl runs at mapping priority to 100% coverage.
   - **Check:** seam-2 tests with synthetic polylines for selection, greedy ordering, both stop rules, detail ordering and progress counts.
-- [ ] **J5** Tick and housekeeping:
+- [x] **J5** Tick and housekeeping:
   - `POST /internal/tick` runs a time-capped drain (about 20 s) and, once a day (tracked in `app_state`), housekeeping: enqueue freshness re-fetches for Segment details older than 30 days, oldest first, recently searched areas first; prune finished jobs and old usage rows;
   - the route verifies a Google OIDC token (the audience is the service URL, the issuer is Google, and the email is the configured Scheduler service account, from new env vars in `.env.example`);
   - outside production, the dev server also calls the same function on a 5-minute `setInterval`, and test mode can call it without a token.

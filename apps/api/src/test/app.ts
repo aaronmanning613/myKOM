@@ -69,6 +69,7 @@ export function buildTestApp(
     nominatim: withNominatim = true,
     ipLocator,
     trustProxy,
+    tick,
   }: {
     testRoutes?: boolean;
     /** false builds the app as if NOMINATIM_USER_AGENT were unset. */
@@ -76,6 +77,7 @@ export function buildTestApp(
     /** Leave out to build the app as if the GeoLite2 City database were missing. */
     ipLocator?: IpLocator;
     trustProxy?: BuildAppOptions['trustProxy'];
+    tick?: BuildAppOptions['tick'];
   } = {},
 ) {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -104,6 +106,7 @@ export function buildTestApp(
     trustProxy,
     sessionSecret: TEST_SESSION_SECRET,
     testRoutes,
+    tick,
   });
   return { app, fetch, nominatimFetch, strava };
 }

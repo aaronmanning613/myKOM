@@ -37,6 +37,8 @@ describe('readEnv', () => {
       trustProxy: false,
       testMode: false,
       liveMode: false,
+      production: false,
+      tickOidc: undefined,
     });
   });
 
@@ -53,6 +55,8 @@ describe('readEnv', () => {
         NOMINATIM_USER_AGENT: 'myKOM/0.1 (runner@example.com)',
         GEOLITE2_CITY_DB: '/var/lib/geoip/GeoLite2-City.mmdb',
         TRUST_PROXY: 'true',
+        TICK_OIDC_AUDIENCE: 'https://mykom.example.run.app',
+        TICK_SERVICE_ACCOUNT: 'scheduler@project.iam.gserviceaccount.com',
       }),
     ).toEqual({
       host: '0.0.0.0',
@@ -67,6 +71,11 @@ describe('readEnv', () => {
       trustProxy: true,
       testMode: false,
       liveMode: false,
+      production: false,
+      tickOidc: {
+        audience: 'https://mykom.example.run.app',
+        serviceAccountEmail: 'scheduler@project.iam.gserviceaccount.com',
+      },
     });
   });
 
@@ -84,6 +93,18 @@ describe('readEnv', () => {
     [' 10.0.0.0/8 , ::1 ', ['10.0.0.0/8', '::1']],
   ])('reads TRUST_PROXY %j', (value, trustProxy) => {
     expect(readEnv({ TRUST_PROXY: value }).trustProxy).toEqual(trustProxy);
+  });
+
+  it.each([
+    [{ TICK_OIDC_AUDIENCE: 'https://mykom.example.run.app' }],
+    [{ TICK_SERVICE_ACCOUNT: 'scheduler@project.iam.gserviceaccount.com' }],
+  ])('needs both tick OIDC variables or neither (%o)', (source) => {
+    expect(() => readEnv(source)).toThrow(/must be set together/);
+  });
+
+  it('knows when it is production', () => {
+    expect(readEnv(PRODUCTION).production).toBe(true);
+    expect(readEnv({ NODE_ENV: 'development' }).production).toBe(false);
   });
 
   it('treats a blank NOMINATIM_USER_AGENT as unset', () => {

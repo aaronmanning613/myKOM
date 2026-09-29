@@ -48,6 +48,14 @@ export type Env = {
    * token store), deauthorize is blocked, and `POST /api/test/login-live` is registered.
    */
   liveMode: boolean;
+  /** NODE_ENV=production. Outside production the dev server ticks itself on an interval. */
+  production: boolean;
+  /**
+   * TICK_OIDC_AUDIENCE (the service URL) and TICK_SERVICE_ACCOUNT (the Cloud Scheduler service
+   * account's email): what `POST /internal/tick` checks the Scheduler's OIDC token against.
+   * Unset, the route refuses every token.
+   */
+  tickOidc: { audience: string; serviceAccountEmail: string } | undefined;
 };
 
 /** Loads the repo-root `.env` into `process.env` if present. Existing variables win. */
@@ -90,7 +98,22 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     trustProxy: parseTrustProxy(source.TRUST_PROXY),
     testMode,
     liveMode,
+    production: !notProduction,
+    tickOidc: parseTickOidc(source.TICK_OIDC_AUDIENCE, source.TICK_SERVICE_ACCOUNT),
   };
+}
+
+function parseTickOidc(
+  audience: string | undefined,
+  serviceAccountEmail: string | undefined,
+): Env['tickOidc'] {
+  const aud = audience?.trim() ?? '';
+  const email = serviceAccountEmail?.trim() ?? '';
+  if (aud === '' && email === '') return undefined;
+  if (aud === '' || email === '') {
+    throw new Error('TICK_OIDC_AUDIENCE and TICK_SERVICE_ACCOUNT must be set together');
+  }
+  return { audience: aud, serviceAccountEmail: email };
 }
 
 function parseTokenEncryptionKey(value: string | undefined, notProduction: boolean): Buffer {
