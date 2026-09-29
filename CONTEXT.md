@@ -15,7 +15,7 @@ The Runner's time for one standard distance, from a fixed set running from 400m 
 _Avoid_: PR, PB (those are per-Segment)
 
 **Fitness Profile**:
-The Runner's current set of Benchmarks. Defaults to times generated from the Runner's best recent race-like runs (the last 3 years); the Runner may override any Benchmark by their own judgement.
+The Runner's current set of Benchmarks. Generated from the Runner's best recent race-like runs (the last 3 years) when they connect; later changes are only suggested, and the Runner applies them. The Runner may override any Benchmark by their own judgement.
 _Avoid_: Fitness score, current fitness
 
 **Segment PB**:
