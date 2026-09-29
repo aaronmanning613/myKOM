@@ -1,7 +1,14 @@
 // The Strava job handlers: what each kind of job reads from Strava and stores.
-import { recordFor, RECORD_GENDERS } from '@mykom/shared';
-import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
-import { activities, runnerSegments, segmentEfforts, segments } from '../db/schema.js';
+import { distanceKm, recordFor, RECORD_GENDERS } from '@mykom/shared';
+import { and, eq, inArray, isNull, notExists, sql } from 'drizzle-orm';
+import {
+  activities,
+  mappedAreas,
+  runnerSegments,
+  searchAreas,
+  segmentEfforts,
+  segments,
+} from '../db/schema.js';
 import {
   STRAVA_PAGE_SIZE,
   type StravaActivitySummary,
@@ -40,7 +47,8 @@ function priorityOf(job: Job): JobPriority {
  * A run's DetailedActivity: stores its Segment efforts (their Segments summary-only when new),
  * refreshes the Runner's links to those Segments, and marks the run's details fetched. An
  * effort with a KOM/QOM achievement or a top-10 hint queues that Segment's details at search
- * priority ("I just took it"), so a crown shows on the next results load.
+ * priority ("I just took it"), so a crown shows on the next results load. A new run's other
+ * Segments that start inside a saved area get their details queued at mapping priority.
  */
 const activityDetail: JobHandler = async (job, { db, strava, now, enqueue }) => {
   const { data: run } = await strava.getActivity(job.runnerId, job.target!);
@@ -93,7 +101,44 @@ const activityDetail: JobHandler = async (job, { db, strava, now, enqueue }) => 
       priority: 'search',
     });
   }
+  // A new run's Segments inside a saved area are fetched ahead of any search there. (A crawl's
+  // runs don't need this: the crawl queues its area's missing details itself.)
+  if (job.priority === JOB_PRIORITY['new-run']) {
+    const inAreas = await segmentsInSavedAreas(
+      db,
+      job.runnerId,
+      run.efforts.map((effort) => effort.segment.id).filter((id) => !hinted.has(id)),
+    );
+    for (const segmentId of inAreas) {
+      await enqueue({
+        kind: 'segment-detail',
+        target: segmentId,
+        runnerId: job.runnerId,
+        priority: 'mapping',
+      });
+    }
+  }
 };
+
+/**
+ * Of the given Segments, those without details whose start lies inside the Runner's Search
+ * Area or one of their Mapped Areas.
+ */
+async function segmentsInSavedAreas(db: Db, runnerId: number, segmentIds: number[]) {
+  if (segmentIds.length === 0) return [];
+  const [summaries, searchArea, mapped] = await Promise.all([
+    db
+      .select({ id: segments.id, lat: segments.startLat, lng: segments.startLng })
+      .from(segments)
+      .where(and(inArray(segments.id, segmentIds), isNull(segments.detailFetchedAt))),
+    db.select().from(searchAreas).where(eq(searchAreas.runnerId, runnerId)),
+    db.select().from(mappedAreas).where(eq(mappedAreas.runnerId, runnerId)),
+  ]);
+  const areas = [...searchArea, ...mapped];
+  return summaries
+    .filter((start) => areas.some((area) => distanceKm(area, start) <= area.radiusKm))
+    .map((segment) => segment.id);
+}
 
 /**
  * A Segment's details: fills the shared Segment row (Target Records, athlete count, geometry)

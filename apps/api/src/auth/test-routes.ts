@@ -1,11 +1,13 @@
 // Test-only routes, so end-to-end tests can sign in without real Strava credentials.
 // buildApp registers them only when `testRoutes` is on, which readEnv never allows in production.
 import { randomInt } from 'node:crypto';
+import type { Me } from '@mykom/shared';
+import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '../db/client.js';
+import { runners } from '../db/schema.js';
 import { STRAVA_SCOPES } from '../strava/client.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
-import type { Me } from './routes.js';
 import { upsertRunnerFromStrava } from './runners.js';
 import { startSession } from './session.js';
 
@@ -43,8 +45,14 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
       },
       [...STRAVA_SCOPES],
     );
+    // Like a real sign-in's first sync, but without reading Strava: the visit check leaves the
+    // Runner alone until its throttle has passed.
+    await db
+      .update(runners)
+      .set({ activitiesCheckedAt: new Date() })
+      .where(eq(runners.id, runnerId));
     startSession(request, reply, runnerId);
-    const me: Me = { id: runnerId, firstName, avatarUrl: null };
+    const me: Me = { id: runnerId, firstName, avatarUrl: null, onboarded: false, suggestion: null };
     return me;
   });
 };

@@ -49,7 +49,12 @@ describe('GET /api/fitness-profile', () => {
   it('is empty for a new Runner', async () => {
     const res = await getProfile(await signIn());
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ benchmarks: [], generation: null, suggestion: null });
+    expect(res.json()).toEqual({
+      benchmarks: [],
+      generation: null,
+      suggestion: null,
+      resyncedAt: null,
+    });
   });
 
   it('is 401 and clears the session once the Runner is deleted', async () => {
@@ -126,7 +131,12 @@ describe('PUT /api/fitness-profile', () => {
     expect(summary(res.json())).toEqual([{ distance: '5k', seconds: 1180, source: 'runner' }]);
 
     const cleared = await putProfile(session, { benchmarks: [] });
-    expect(cleared.json()).toEqual({ benchmarks: [], generation: null, suggestion: null });
+    expect(cleared.json()).toEqual({
+      benchmarks: [],
+      generation: null,
+      suggestion: null,
+      resyncedAt: null,
+    });
     const rows = await db.select().from(benchmarks).where(eq(benchmarks.runnerId, session.id));
     expect(rows).toEqual([]);
   });

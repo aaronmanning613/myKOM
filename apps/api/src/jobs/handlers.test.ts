@@ -3,8 +3,10 @@ import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   activities,
+  mappedAreas,
   runnerSegments,
   runners,
+  searchAreas,
   segmentEfforts,
   segments,
   stravaJobs,
@@ -224,6 +226,70 @@ describe('activity detail', () => {
     expect(await pendingJobs()).toEqual([
       { kind: 'segment-detail', target: 40464681, priority: JOB_PRIORITY.search, runnerId },
     ]);
+  });
+
+  it("queues a new run's Segments inside a saved area at mapping priority", async () => {
+    const { db, strava, queue, drain } = setup();
+    // A 5 km Search Area in Ottawa and a 10 km Mapped Area in Toronto.
+    await db
+      .insert(searchAreas)
+      .values({ runnerId, label: 'Ottawa', lat: 45.42, lng: -75.69, radiusKm: 5 });
+    await db
+      .insert(mappedAreas)
+      .values({ runnerId, label: 'Toronto', lat: 43.65, lng: -79.38, radiusKm: 10 });
+    const [inSearch, inMapped, outside, detailed, hinted] = [7001, 7002, 7003, 7004, 7005];
+    const at = (id: number, lat: number, lng: number): Body => ({
+      ...effort(id * 10, id, 200),
+      segment: summarySegment(id, { start_latlng: [lat, lng] }),
+    });
+    await db.insert(segments).values({
+      id: detailed,
+      name: 'Already fetched',
+      activityType: 'Run',
+      distance: 800,
+      startLat: 45.421,
+      startLng: -75.691,
+      detailFetchedAt: NOW,
+    });
+    const efforts = [
+      at(inSearch, 45.425, -75.69),
+      at(inMapped, 43.7, -79.4),
+      at(outside, 45.5, -75.69),
+      at(detailed, 45.421, -75.691),
+      { ...at(hinted, 45.42, -75.69), kom_rank: 3 },
+    ];
+    const hintedJob = {
+      kind: 'segment-detail',
+      target: hinted,
+      priority: JOB_PRIORITY.search,
+      runnerId,
+    };
+
+    // A crawl's run (search priority) leaves its area's details to the crawl.
+    strava.set('/activities/1', run(1, efforts));
+    await queue.enqueue({ kind: 'activity-detail', target: 1, runnerId, priority: 'search' }, NOW);
+    expect(await drain()).toMatchObject({ succeeded: 1, failed: 0 });
+    expect(await pendingJobs()).toEqual([hintedJob]);
+
+    await db.delete(stravaJobs);
+    strava.set(
+      '/activities/2',
+      run(
+        2,
+        efforts.map((e) => ({ ...e, id: Number(e.id) + 1 })),
+      ),
+    );
+    await queue.enqueue({ kind: 'activity-detail', target: 2, runnerId, priority: 'new-run' }, NOW);
+    expect(await drain()).toMatchObject({ succeeded: 1, failed: 0 });
+    const pending = await pendingJobs();
+    expect(pending).toHaveLength(3);
+    expect(pending).toEqual(
+      expect.arrayContaining([
+        { kind: 'segment-detail', target: inSearch, priority: JOB_PRIORITY.mapping, runnerId },
+        { kind: 'segment-detail', target: inMapped, priority: JOB_PRIORITY.mapping, runnerId },
+        hintedJob,
+      ]),
+    );
   });
 
   it('keeps the best effort across runs, and a re-fetched run replaces its efforts', async () => {

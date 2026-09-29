@@ -27,6 +27,7 @@ const saved: FitnessProfile = {
   ],
   generation: null,
   suggestion: null,
+  resyncedAt: null,
 };
 
 /** Echoes a PUT back as the saved profile, recording each body sent. */

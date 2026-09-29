@@ -5,6 +5,7 @@ export * from './flat-model.js';
 export * from './geocode.js';
 export * from './implausible.js';
 export * from './locate-ip.js';
+export * from './me.js';
 export * from './polyline.js';
 export * from './predict.js';
 export * from './profile-generation.js';

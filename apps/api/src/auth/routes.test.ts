@@ -337,6 +337,8 @@ describe('GET /api/me', () => {
       id: expect.any(Number),
       firstName: 'Paula',
       avatarUrl: 'https://example.com/paula.jpg',
+      onboarded: false,
+      suggestion: null,
     });
   });
 

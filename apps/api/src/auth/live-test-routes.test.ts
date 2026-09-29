@@ -118,6 +118,8 @@ describe('POST /api/test/login-live', () => {
       id: expect.any(Number),
       firstName: 'Faith',
       avatarUrl: 'https://example.com/faith.jpg',
+      onboarded: false,
+      suggestion: null,
     });
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = fetch.mock.calls[0]!;

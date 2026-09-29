@@ -12,10 +12,11 @@ import {
   type FitnessProfileUpdate,
   type GeneratedFitnessProfile,
   type ProfileSourceRun,
+  type SuggestionSummary,
 } from '@mykom/shared';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
-import { activities, benchmarks, fitnessProfiles } from '../db/schema.js';
+import { activities, benchmarks, fitnessProfiles, runners } from '../db/schema.js';
 
 type Db = Database['db'];
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -57,9 +58,10 @@ async function sourceRuns(db: Db, runnerId: number, ids: number[]): Promise<Prof
  * generation and any pending suggestion.
  */
 export async function loadFitnessProfile(db: Db, runnerId: number): Promise<FitnessProfile> {
-  const [rows, [profile]] = await Promise.all([
+  const [rows, [profile], [runner]] = await Promise.all([
     db.select().from(benchmarks).where(eq(benchmarks.runnerId, runnerId)),
     db.select().from(fitnessProfiles).where(eq(fitnessProfiles.runnerId, runnerId)),
+    db.select({ resyncedAt: runners.resyncedAt }).from(runners).where(eq(runners.id, runnerId)),
   ]);
   const kept = rows
     // Skips distances dropped from BENCHMARK_DISTANCES since they were saved.
@@ -96,7 +98,22 @@ export async function loadFitnessProfile(db: Db, runnerId: number): Promise<Fitn
     })),
     generation,
     suggestion,
+    resyncedAt: runner?.resyncedAt?.toISOString() ?? null,
   };
+}
+
+/** The pending suggestion for the banner, or null when there is none. */
+export async function loadSuggestionSummary(
+  db: Db,
+  runnerId: number,
+): Promise<SuggestionSummary | null> {
+  const [profile] = await db
+    .select()
+    .from(fitnessProfiles)
+    .where(eq(fitnessProfiles.runnerId, runnerId));
+  if (profile?.suggestedVdot == null) return null;
+  const [source] = await sourceRuns(db, runnerId, profile.suggestedSourceActivityIds ?? []);
+  return { vdot: profile.suggestedVdot, appliedVdot: profile.vdot, source: source ?? null };
 }
 
 /** The applied generation's 13 values, or null when there is none. */
@@ -280,12 +297,12 @@ export async function generateFromStoredRuns(
 export async function applyGeneration(
   db: Db,
   runnerId: number,
-  generation: GeneratedFitnessProfile | null,
+  generation: Generation | null,
   now = new Date(),
 ): Promise<void> {
   const applied = {
     vdot: generation?.vdot ?? null,
-    sourceActivityIds: generation?.sources.map((s) => s.activityId) ?? [],
+    sourceActivityIds: generation?.sourceActivityIds ?? [],
     generatedAt: now,
     suggestedVdot: null,
     suggestedSourceActivityIds: null,
@@ -307,7 +324,8 @@ export async function applyGeneration(
         .where(mine);
       return;
     }
-    const generated = new Map(generation.benchmarks.map((b) => [b.distance, b.seconds]));
+    const values = benchmarksFromVdot(generation.vdot);
+    const generated = new Map(values.map((b) => [b.distance, b.seconds]));
     const pinned = await tx
       .select({ distance: benchmarks.distance, seconds: benchmarks.seconds })
       .from(benchmarks)
@@ -316,7 +334,7 @@ export async function applyGeneration(
     await writeBenchmarks(
       tx,
       runnerId,
-      generation.benchmarks.filter((b) => !pinnedDistances.has(b.distance)),
+      values.filter((b) => !pinnedDistances.has(b.distance)),
       generated,
       'generated',
       now,
@@ -325,7 +343,129 @@ export async function applyGeneration(
   });
 }
 
+/** A generation as `fitness_profiles` stores it: its values all follow from the VDOT. */
+export type Generation = { vdot: number; sourceActivityIds: number[] };
+
+function asGeneration(profile: GeneratedFitnessProfile | null): Generation | null {
+  if (!profile) return null;
+  return { vdot: profile.vdot, sourceActivityIds: profile.sources.map((s) => s.activityId) };
+}
+
 /** Regenerates the Fitness Profile from the stored runs and applies it directly. */
 export async function regenerateFitnessProfile(db: Db, runnerId: number, now = new Date()) {
-  await applyGeneration(db, runnerId, await generateFromStoredRuns(db, runnerId, now), now);
+  const generation = asGeneration(await generateFromStoredRuns(db, runnerId, now));
+  await applyGeneration(db, runnerId, generation, now);
+}
+
+/**
+ * After a new-run check or resync: regenerates the Fitness Profile from the stored runs and,
+ * when its values for the unpinned Benchmarks differ from both the applied generation's and the
+ * last dismissed suggestion's, stores it as the pending suggestion. Otherwise any pending
+ * suggestion is cleared, since it no longer describes the runs. Nothing else changes until the
+ * Runner applies it. Returns whether a suggestion is pending.
+ */
+export async function suggestFitnessProfile(
+  db: Db,
+  runnerId: number,
+  now = new Date(),
+): Promise<boolean> {
+  const generation = await generateFromStoredRuns(db, runnerId, now);
+  return db.transaction(async (tx) => {
+    const [profile] = await tx
+      .select()
+      .from(fitnessProfiles)
+      .where(eq(fitnessProfiles.runnerId, runnerId))
+      .for('update');
+    const pinned = await tx
+      .select({ distance: benchmarks.distance })
+      .from(benchmarks)
+      .where(and(eq(benchmarks.runnerId, runnerId), eq(benchmarks.source, 'runner')));
+    const unpinned = BENCHMARK_DISTANCES.map((d) => d.id).filter(
+      (id) => !pinned.some((b) => b.distance === id),
+    );
+    // The values a suggestion would change, as a comparable key.
+    const unpinnedValues = (values: BenchmarkTime[] | null | undefined) =>
+      unpinned.map((id) => values?.find((b) => b.distance === id)?.seconds ?? null).join(',');
+
+    const applied = profile?.vdot != null ? benchmarksFromVdot(profile.vdot) : null;
+    const next = generation ? unpinnedValues(generation.benchmarks) : null;
+    // TODO(decision): a generation with no qualifying runs is never suggested (the suggestion
+    // columns can't hold a blank profile); the applied generation stays until Regenerate.
+    const suggest =
+      next !== null &&
+      next !== unpinnedValues(applied) &&
+      next !== unpinnedValues(profile?.dismissedBenchmarks);
+
+    const candidate = suggest ? asGeneration(generation) : null;
+    // The same suggestion still pending keeps its time.
+    if (
+      candidate &&
+      profile?.suggestedVdot === candidate.vdot &&
+      String(profile.suggestedSourceActivityIds) === String(candidate.sourceActivityIds)
+    ) {
+      return true;
+    }
+
+    const suggestion = candidate
+      ? {
+          suggestedVdot: candidate.vdot,
+          suggestedSourceActivityIds: candidate.sourceActivityIds,
+          suggestedAt: now,
+        }
+      : { suggestedVdot: null, suggestedSourceActivityIds: null, suggestedAt: null };
+    if (profile) {
+      await tx
+        .update(fitnessProfiles)
+        .set({ ...suggestion, updatedAt: now })
+        .where(eq(fitnessProfiles.runnerId, runnerId));
+    } else if (candidate) {
+      await tx
+        .insert(fitnessProfiles)
+        .values({ runnerId, ...suggestion, updatedAt: now })
+        .onConflictDoUpdate({ target: fitnessProfiles.runnerId, set: suggestion });
+    }
+    return candidate !== null;
+  });
+}
+
+/**
+ * Apply: the pending suggestion becomes the applied generation (unpinned Benchmarks take its
+ * values). False when there is no pending suggestion.
+ */
+export async function applySuggestion(db: Db, runnerId: number, now = new Date()) {
+  const [profile] = await db
+    .select()
+    .from(fitnessProfiles)
+    .where(eq(fitnessProfiles.runnerId, runnerId));
+  if (profile?.suggestedVdot == null) return false;
+  await applyGeneration(
+    db,
+    runnerId,
+    { vdot: profile.suggestedVdot, sourceActivityIds: profile.suggestedSourceActivityIds ?? [] },
+    now,
+  );
+  return true;
+}
+
+/**
+ * Dismiss: records the suggestion's values, so the same values aren't suggested again, and
+ * clears it. False when there is no pending suggestion.
+ */
+export async function dismissSuggestion(db: Db, runnerId: number, now = new Date()) {
+  const [profile] = await db
+    .select()
+    .from(fitnessProfiles)
+    .where(eq(fitnessProfiles.runnerId, runnerId));
+  if (profile?.suggestedVdot == null) return false;
+  await db
+    .update(fitnessProfiles)
+    .set({
+      dismissedBenchmarks: benchmarksFromVdot(profile.suggestedVdot),
+      suggestedVdot: null,
+      suggestedSourceActivityIds: null,
+      suggestedAt: null,
+      updatedAt: now,
+    })
+    .where(eq(fitnessProfiles.runnerId, runnerId));
+  return true;
 }

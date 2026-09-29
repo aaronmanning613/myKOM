@@ -3,14 +3,17 @@ import {
   MAX_BENCHMARK_SECONDS,
   type FitnessProfile,
   type FitnessProfileUpdate,
+  type SuggestionAction,
   type UpdateAllRequest,
 } from '@mykom/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import { requireRunner } from '../auth/guard.js';
 import type { Database } from '../db/client.js';
 import type { StravaClient } from '../strava/client.js';
-import { syncActivities } from '../sync/activities.js';
+import { syncNewRuns } from '../sync/new-runs.js';
 import {
+  applySuggestion,
+  dismissSuggestion,
   loadFitnessProfile,
   NoGeneratedValueError,
   regenerateFitnessProfile,
@@ -54,6 +57,13 @@ const updateAllSchema = {
   required: ['distance', 'seconds'],
   additionalProperties: false,
   properties: { distance, seconds },
+} as const;
+
+const suggestionSchema = {
+  type: 'object',
+  required: ['action'],
+  additionalProperties: false,
+  properties: { action: { type: 'string', enum: ['apply', 'dismiss'] } },
 } as const;
 
 export const fitnessProfileRoutes: FastifyPluginAsync<FitnessProfileRoutesOptions> = async (
@@ -120,9 +130,26 @@ export const fitnessProfileRoutes: FastifyPluginAsync<FitnessProfileRoutesOption
     const runner = await requireRunner(db, request, reply);
     if (!runner) return reply;
     const now = new Date();
-    await syncActivities({ db, strava }, runner.id, 'new', now);
+    await syncNewRuns({ db, strava }, runner.id, 'new', now);
     await regenerateFitnessProfile(db, runner.id, now);
     const profile: FitnessProfile = await loadFitnessProfile(db, runner.id);
     return profile;
   });
+
+  app.post<{ Body: SuggestionAction }>(
+    '/api/fitness-profile/suggestion',
+    { schema: { body: suggestionSchema } },
+    async (request, reply) => {
+      const runner = await requireRunner(db, request, reply);
+      if (!runner) return reply;
+      const act = request.body.action === 'apply' ? applySuggestion : dismissSuggestion;
+      if (!(await act(db, runner.id))) {
+        return reply
+          .code(409)
+          .send({ error: 'no_suggestion', message: 'There is no pending suggestion' });
+      }
+      const profile: FitnessProfile = await loadFitnessProfile(db, runner.id);
+      return profile;
+    },
+  );
 };

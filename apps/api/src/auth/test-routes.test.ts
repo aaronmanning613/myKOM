@@ -33,7 +33,13 @@ describe('POST /api/test/login', () => {
     expect(res.statusCode).toBe(200);
     const me = res.json<{ id: number; firstName: string; avatarUrl: null }>();
     runnerIds.push(me.id);
-    expect(me).toEqual({ id: expect.any(Number), firstName: 'Eliud', avatarUrl: null });
+    expect(me).toEqual({
+      id: expect.any(Number),
+      firstName: 'Eliud',
+      avatarUrl: null,
+      onboarded: false,
+      suggestion: null,
+    });
     const [tokens] = await db.select().from(stravaTokens).where(eq(stravaTokens.runnerId, me.id));
     expect(tokens).toBeDefined();
 

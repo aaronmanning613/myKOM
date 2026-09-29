@@ -63,7 +63,24 @@ export type FitnessProfile = {
   /** The applied generation; null when none has been applied or no run qualified. */
   generation: ProfileGeneration | null;
   suggestion: ProfileSuggestion | null;
+  /** ISO 8601 time of the last "Resync my runs", or null if never. */
+  resyncedAt: string | null;
 };
+
+/**
+ * The pending suggestion as `GET /api/me` reports it, for the banner: "Your 10K on 27 Sep
+ * suggests VDOT 70.1 → 71.3".
+ */
+export type SuggestionSummary = {
+  vdot: number;
+  /** The applied generation's VDOT, or null without one. */
+  appliedVdot: number | null;
+  /** The best run it was estimated from (null if it has since been deleted). */
+  source: ProfileSourceRun | null;
+};
+
+/** The body of `POST /api/fitness-profile/suggestion`. */
+export type SuggestionAction = { action: 'apply' | 'dismiss' };
 
 /**
  * One row of `PUT /api/fitness-profile`: a time pins the Benchmark (unless unchanged);

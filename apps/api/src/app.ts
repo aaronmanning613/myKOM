@@ -9,13 +9,15 @@ import type { NominatimClient } from './geocode/nominatim.js';
 import { geocodeRoutes } from './geocode/routes.js';
 import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
-import { endSession } from './auth/session.js';
+import { endSession, sessionRunnerId } from './auth/session.js';
 import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
 import { preferencesRoutes } from './preferences/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
 import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
 import type { TokenCipher } from './strava/token-cipher.js';
+import { visitCheck } from './sync/new-runs.js';
+import { syncRoutes } from './sync/routes.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
@@ -45,6 +47,14 @@ export type BuildAppOptions = {
   /** Registers `POST /internal/tick`: the tick, and how its caller is checked. */
   tick?: TickRoutesOptions;
 };
+
+const VISIT_CHECK_SKIPS = [
+  '/api/health',
+  '/api/auth/',
+  '/api/test/',
+  '/api/fitness-profile/regenerate',
+  '/api/activities/resync',
+];
 
 export type HealthStatus = {
   ok: boolean;
@@ -89,8 +99,27 @@ export function buildApp({
     return { ok: dbUp, db: dbUp ? 'up' : 'down' };
   });
 
+  // The visit check: the first authenticated request of a visit picks up new runs. Routes that
+  // read the activity list themselves, and sign-in/out, are left out.
+  app.addHook('preHandler', async (request) => {
+    const path = request.url.split('?')[0]!;
+    if (!path.startsWith('/api/') || VISIT_CHECK_SKIPS.some((skip) => path.startsWith(skip))) {
+      return;
+    }
+    const runnerId = sessionRunnerId(request);
+    if (runnerId === undefined) return;
+    try {
+      await visitCheck({ db: database.db, strava }, runnerId);
+    } catch (err) {
+      // Revoked: the error handler signs them out. Otherwise the request goes on without it.
+      if (err instanceof StravaRevokedError) throw err;
+      request.log.error(err, 'New-run check failed');
+    }
+  });
+
   app.register(authRoutes, { db: database.db, strava, tokenCipher });
   app.register(fitnessProfileRoutes, { db: database.db, strava });
+  app.register(syncRoutes, { db: database.db, strava });
   app.register(preferencesRoutes, { db: database.db });
   app.register(searchAreaRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });

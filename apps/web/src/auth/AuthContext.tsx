@@ -1,12 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-/** Mirrors the API's `GET /api/me` response: the signed-in Runner. */
-export type Me = {
-  id: number;
-  firstName: string;
-  avatarUrl: string | null;
-};
+import type { Me } from '@mykom/shared';
+
+export type { Me };
 
 export type AuthState =
   | { status: 'loading' }

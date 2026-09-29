@@ -4,13 +4,14 @@
 //
 // The caller sends no token: the server loads the live token store itself. Never put a token in a
 // response or log line.
+import type { Me } from '@mykom/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '../db/client.js';
+import { loadSuggestionSummary } from '../fitness-profile/store.js';
 import { StravaError, type StravaClient } from '../strava/client.js';
 import { LiveTokenError, type LiveTokenStore } from '../strava/live-token-store.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
-import type { Me } from './routes.js';
-import { upsertRunnerFromStrava } from './runners.js';
+import { findRunner, upsertRunnerFromStrava } from './runners.js';
 import { startSession } from './session.js';
 
 export type LiveTestRoutesOptions = {
@@ -69,7 +70,14 @@ export const liveTestRoutes: FastifyPluginAsync<LiveTestRoutesOptions> = async (
       grantedScopes,
     );
     startSession(request, reply, runnerId);
-    const me: Me = { id: runnerId, firstName: athlete.firstName, avatarUrl: athlete.avatarUrl };
+    const runner = await findRunner(db, runnerId);
+    const me: Me = {
+      id: runnerId,
+      firstName: athlete.firstName,
+      avatarUrl: athlete.avatarUrl,
+      onboarded: runner?.onboardedAt != null,
+      suggestion: await loadSuggestionSummary(db, runnerId),
+    };
     return me;
   });
 };

@@ -185,7 +185,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
   - `POST /api/fitness-profile/update-all`, `/reset` and `/regenerate` (runs a `new` sync, ignoring the throttle, and applies directly);
   - `PUT /api/preferences` sets KOM/QOM.
   - **Check:** seam-3 tests for each endpoint, including pins surviving regeneration, update-all overwriting pins, and reset.
-- [ ] **N3** The visit check and suggestions:
+- [x] **N3** The visit check and suggestions:
   - on the first authenticated request when `activities_checked_at` is older than 3 hours, run a `new` sync;
   - queue each new run's detail at new-run priority; queue Segment details for new Segments that start inside a saved Search Area or Mapped Area at mapping priority;
   - regenerate the profile, and if the unpinned values differ from the applied ones and from the last dismissed values, store a pending suggestion;
