@@ -2,7 +2,11 @@
 import { recordFor, RECORD_GENDERS } from '@mykom/shared';
 import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { activities, runnerSegments, segmentEfforts, segments } from '../db/schema.js';
-import { STRAVA_PAGE_SIZE, type StravaSegmentSummary } from '../strava/client.js';
+import {
+  STRAVA_PAGE_SIZE,
+  type StravaActivitySummary,
+  type StravaSegmentSummary,
+} from '../strava/client.js';
 import {
   JOB_PRIORITY,
   type Db,
@@ -42,19 +46,7 @@ const activityDetail: JobHandler = async (job, { db, strava, now, enqueue }) => 
   const { data: run } = await strava.getActivity(job.runnerId, job.target!);
   const fetchedAt = now();
   await db.transaction(async (tx) => {
-    const summary = {
-      name: run.name,
-      sportType: run.sportType,
-      startDate: new Date(run.startDate),
-      distance: run.distance,
-      movingTime: run.movingTime,
-      summaryPolyline: run.summaryPolyline,
-      minLat: run.bbox?.minLat ?? null,
-      minLng: run.bbox?.minLng ?? null,
-      maxLat: run.bbox?.maxLat ?? null,
-      maxLng: run.bbox?.maxLng ?? null,
-      detailFetchedAt: fetchedAt,
-    };
+    const summary = { ...activityColumns(run), detailFetchedAt: fetchedAt };
     await tx
       .insert(activities)
       .values({ id: run.id, runnerId: job.runnerId, ...summary })
@@ -157,25 +149,7 @@ function segmentDetail(log: JobLogger): JobHandler {
 const starredSegments: JobHandler = async (job, { db, strava, enqueue }) => {
   const page = job.target ?? 1;
   const { data } = await strava.getStarredSegments(job.runnerId, page);
-  const running = data.filter((segment) => segment.activityType === 'Run');
-  if (running.length > 0) {
-    await db.transaction(async (tx) => {
-      await insertSummarySegments(tx, running);
-      await tx
-        .insert(runnerSegments)
-        .values(
-          running.map((segment) => ({
-            runnerId: job.runnerId,
-            segmentId: segment.id,
-            viaStarred: true,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: [runnerSegments.runnerId, runnerSegments.segmentId],
-          set: { viaStarred: true },
-        });
-    });
-  }
+  await storeStarredSegments(db, job.runnerId, data);
   if (data.length === STRAVA_PAGE_SIZE) {
     await enqueue({
       kind: 'starred-segments',
@@ -186,6 +160,45 @@ const starredSegments: JobHandler = async (job, { db, strava, enqueue }) => {
     });
   }
 };
+
+/**
+ * Links the running Segments among a page of starred Segments to the Runner as starred,
+ * storing new ones summary-only.
+ */
+export async function storeStarredSegments(
+  db: Db,
+  runnerId: number,
+  starred: StravaSegmentSummary[],
+) {
+  const running = starred.filter((segment) => segment.activityType === 'Run');
+  if (running.length === 0) return;
+  await db.transaction(async (tx) => {
+    await insertSummarySegments(tx, running);
+    await tx
+      .insert(runnerSegments)
+      .values(running.map((segment) => ({ runnerId, segmentId: segment.id, viaStarred: true })))
+      .onConflictDoUpdate({
+        target: [runnerSegments.runnerId, runnerSegments.segmentId],
+        set: { viaStarred: true },
+      });
+  });
+}
+
+/** A run summary's `activities` columns: everything but the Runner and the detail state. */
+export function activityColumns(run: StravaActivitySummary) {
+  return {
+    name: run.name,
+    sportType: run.sportType,
+    startDate: new Date(run.startDate),
+    distance: run.distance,
+    movingTime: run.movingTime,
+    summaryPolyline: run.summaryPolyline,
+    minLat: run.bbox?.minLat ?? null,
+    minLng: run.bbox?.minLng ?? null,
+    maxLat: run.bbox?.maxLat ?? null,
+    maxLng: run.bbox?.maxLng ?? null,
+  };
+}
 
 function summaryColumns(segment: StravaSegmentSummary) {
   return {

@@ -402,8 +402,7 @@ describe('POST /api/auth/disconnect', () => {
     const res = await disconnect(session);
 
     expect(res.statusCode).toBe(204);
-    const [url, init] = fetch.mock.calls[1]!;
-    expect(url).toBe(STRAVA_DEAUTHORIZE_URL);
+    const [, init] = fetch.mock.calls.find(([url]) => url === STRAVA_DEAUTHORIZE_URL)!;
     expect((init!.body as URLSearchParams).get('access_token')).toBe('access-1');
 
     expect(await runnerData(runnerId)).toEqual({ runners: [], tokens: [] });
@@ -424,6 +423,8 @@ describe('POST /api/auth/disconnect', () => {
     const { cookie, state } = await startSignIn();
     const login = await callback({ code: 'the-code', state, scope: 'read' }, cookie.value);
     const session = login.cookies.find((c) => c.name === SESSION_COOKIE)!.value;
+    // Only the disconnect's calls from here (sign-in's first sync already tried Strava).
+    fetch.mockClear();
     fetch
       .mockResolvedValueOnce(
         Response.json({ access_token: 'access-2', refresh_token: 'refresh-2', expires_at: 2e9 }),
@@ -433,9 +434,9 @@ describe('POST /api/auth/disconnect', () => {
     const res = await disconnect(session);
 
     expect(res.statusCode).toBe(204);
-    const [refreshBody, deauthorizeBody] = fetch.mock.calls
-      .slice(1)
-      .map(([, init]) => init!.body as URLSearchParams);
+    const [refreshBody, deauthorizeBody] = fetch.mock.calls.map(
+      ([, init]) => init!.body as URLSearchParams,
+    );
     expect(refreshBody!.get('refresh_token')).toBe('refresh-1');
     expect(deauthorizeBody!.get('access_token')).toBe('access-2');
   });
@@ -591,6 +592,7 @@ describe('revoked Strava access', () => {
 
   it('disconnect with a revoked refresh token still deletes and signs out', async () => {
     const { runnerId, session } = await signInRunner(expired);
+    fetch.mockClear();
     fetch.mockResolvedValueOnce(invalidGrant());
 
     const res = await app.inject({
@@ -600,7 +602,7 @@ describe('revoked Strava access', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    expect(fetch).toHaveBeenCalledTimes(2); // sign-in, then the rejected refresh; no deauthorize
+    expect(fetch).toHaveBeenCalledTimes(1); // the rejected refresh; no deauthorize
     expect(await db.$count(runners, eq(runners.id, runnerId))).toBe(0);
   });
 });

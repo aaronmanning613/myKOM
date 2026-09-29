@@ -173,7 +173,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### New runs and the Fitness Profile (spec: Fitness Profile generation, New activities)
 
-- [ ] **N1** Activity sync:
+- [x] **N1** Activity sync:
   - `syncActivities(runner, mode)`, where `full` pages through the whole activity list, upserts runs, deletes the Runner's stored runs that no longer exist and recomputes the affected `runner_segments` bests, and `new` fetches `after=<latest stored start>`;
   - both are interactive calls (they use the reserve);
   - on first sign-in, run `full` plus the starred Segments fetch.

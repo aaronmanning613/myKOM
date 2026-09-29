@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
-import type { StravaClient } from '../strava/client.js';
+import { StravaRevokedError, type StravaClient } from '../strava/client.js';
 import { DeauthorizeBlockedError } from '../strava/live-mode.js';
 import type { TokenCipher } from '../strava/token-cipher.js';
+import { syncActivities, syncStarredSegments } from '../sync/activities.js';
 import { requireRunner } from './guard.js';
-import { deleteRunner, upsertRunnerFromStrava } from './runners.js';
+import { deleteRunner, findRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
 
 export const STATE_COOKIE = 'mykom_oauth_state';
@@ -80,6 +81,21 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
     } catch (err) {
       request.log.error(err, 'Strava sign-in failed');
       return toLogin('strava');
+    }
+
+    // First sign-in (or one whose first sync failed): read every run and starred Segment.
+    const runner = await findRunner(db, runnerId);
+    if (runner && !runner.activitiesCheckedAt) {
+      try {
+        await syncActivities({ db, strava }, runnerId, 'full');
+        await syncStarredSegments({ db, strava }, runnerId);
+      } catch (err) {
+        // The Strava client has already deleted a revoked Runner.
+        if (err instanceof StravaRevokedError) return toLogin('strava');
+        // TODO(decision): a failed first sync doesn't block sign-in; with activities_checked_at
+        // still unset, the next sign-in tries again.
+        request.log.error(err, 'First Strava sync failed');
+      }
     }
     startSession(request, reply, runnerId);
     return reply.redirect('/');
