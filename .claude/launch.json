@@ -4,7 +4,19 @@
     {
       "name": "mykom",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "source ~/.nvm/nvm.sh >/dev/null && nvm use 22 >/dev/null && pnpm dev"],
+      "runtimeArgs": [
+        "-c",
+        "source ~/.nvm/nvm.sh >/dev/null && nvm use 22 >/dev/null && pnpm dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "mykom-live",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "source ~/.nvm/nvm.sh >/dev/null && nvm use 22 >/dev/null && pnpm dev:live"
+      ],
       "port": 5173
     }
   ]
