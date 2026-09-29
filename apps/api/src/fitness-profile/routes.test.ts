@@ -1,4 +1,4 @@
-import type { BenchmarkDistanceId, FitnessProfile } from '@mykom/shared';
+import { BENCHMARK_DISTANCES, type BenchmarkDistanceId, type FitnessProfile } from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SESSION_COOKIE } from '../auth/session.js';
@@ -67,7 +67,7 @@ describe('GET /api/fitness-profile', () => {
       {
         runnerId: session.id,
         // A distance since removed from BENCHMARK_DISTANCES.
-        distance: 'marathon' as BenchmarkDistanceId,
+        distance: 'half-mile' as BenchmarkDistanceId,
         seconds: 10800,
         source: 'runner',
       },
@@ -103,6 +103,15 @@ describe('PUT /api/fitness-profile', () => {
     ];
     expect(summary(res.json())).toEqual(expected);
     expect(summary((await getProfile(session)).json())).toEqual(expected);
+  });
+
+  it('accepts a Benchmark at every one of the 13 distances', async () => {
+    const session = await signIn();
+    const all = BENCHMARK_DISTANCES.map((d, i) => ({ distance: d.id, seconds: 60 + i * 600 }));
+    expect(all).toHaveLength(13);
+    const res = await putProfile(session, { benchmarks: all });
+    expect(res.statusCode).toBe(200);
+    expect(summary(res.json())).toEqual(all.map((b) => ({ ...b, source: 'runner' })));
   });
 
   it('replaces the whole profile: changes times and clears distances left out', async () => {
@@ -162,7 +171,7 @@ describe('PUT /api/fitness-profile', () => {
 
   it.each([
     ['no benchmarks field', {}],
-    ['an unknown distance', { benchmarks: [{ distance: 'marathon', seconds: 10800 }] }],
+    ['a dropped distance', { benchmarks: [{ distance: '2-mile', seconds: 700 }] }],
     ['zero seconds', { benchmarks: [{ distance: '5k', seconds: 0 }] }],
     ['negative seconds', { benchmarks: [{ distance: '5k', seconds: -5 }] }],
     ['fractional seconds', { benchmarks: [{ distance: '5k', seconds: 1200.5 }] }],

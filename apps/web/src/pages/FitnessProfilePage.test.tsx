@@ -36,9 +36,11 @@ describe('Fitness Profile', () => {
     stubApi({ ...signedIn(), 'GET /api/fitness-profile': () => json(saved) });
     renderPage();
 
-    for (const label of ['400m', '1/2 mile', '1K', '1 mile', '2 mile', '5K', '10K']) {
+    const labels = ['400m', '800m', '1K', '1 mile', '3K', '5K', '8K', '10K', '15K', '10 mile'];
+    for (const label of [...labels, 'Half marathon', '30K', 'Marathon']) {
       expect(await timeInput(label)).toBeVisible();
     }
+    expect(screen.getAllByRole('textbox')).toHaveLength(13);
     expect(await timeInput('1K')).toHaveValue('3:42');
     expect(await timeInput('1K')).toHaveAccessibleDescription('3:42/km');
     expect(await timeInput('5K')).toHaveValue('20:00');
@@ -98,13 +100,13 @@ describe('Fitness Profile', () => {
     expect(mile).toHaveAccessibleDescription('Minutes and seconds must be under 60');
 
     await userEvent.type(await timeInput('10K'), 'abc');
-    await userEvent.type(await timeInput('2 mile'), '25:00:00');
+    await userEvent.type(await timeInput('Marathon'), '25:00:00');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await timeInput('10K')).toHaveAccessibleDescription(
       'Enter a time like 75, 3:42 or 1:05:10',
     );
-    expect(await timeInput('2 mile')).toHaveAccessibleDescription('Time must be under 24 hours');
+    expect(await timeInput('Marathon')).toHaveAccessibleDescription('Time must be under 24 hours');
     expect(mile).toHaveFocus();
     expect(bodies).toEqual([]);
     expect(screen.getByRole('status')).toBeEmptyDOMElement();

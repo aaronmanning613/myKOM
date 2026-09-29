@@ -59,7 +59,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Domain core (spec: Fitness Profile generation, Predicted Time model, Target Record/Held/Implausible, Ranking, Tunables)
 
-- [ ] **C1** Benchmark distances 7 → 13.
+- [x] **C1** Benchmark distances 7 → 13.
   - The shared distance list becomes 400 m, 800 m, 1K, 1 mile, 3K, 5K, 8K, 10K, 15K, 10 mile, half (21,097.5 m), 30K and marathon (42,195 m). ½ mile and 2 mile are dropped.
   - Add a migration that deletes stored Benchmarks for the dropped distances.
   - Update the Fitness Profile screen, the API validation and every test.

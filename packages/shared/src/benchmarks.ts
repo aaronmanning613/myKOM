@@ -1,17 +1,23 @@
 const METRES_PER_MILE = 1609.344;
 
 /**
- * The standard distances a Runner has a Benchmark for: the Strava best-effort
- * distances relevant to Segments. The single place to change the list.
+ * The standard distances a Runner has a Benchmark for, shortest first, from
+ * 400m to the marathon. The single place to change the list.
  */
 export const BENCHMARK_DISTANCES = [
   { id: '400m', label: '400m', metres: 400 },
-  { id: 'half-mile', label: '1/2 mile', metres: METRES_PER_MILE / 2 },
+  { id: '800m', label: '800m', metres: 800 },
   { id: '1k', label: '1K', metres: 1000 },
   { id: '1-mile', label: '1 mile', metres: METRES_PER_MILE },
-  { id: '2-mile', label: '2 mile', metres: METRES_PER_MILE * 2 },
+  { id: '3k', label: '3K', metres: 3000 },
   { id: '5k', label: '5K', metres: 5000 },
+  { id: '8k', label: '8K', metres: 8000 },
   { id: '10k', label: '10K', metres: 10000 },
+  { id: '15k', label: '15K', metres: 15000 },
+  { id: '10-mile', label: '10 mile', metres: METRES_PER_MILE * 10 },
+  { id: 'half-marathon', label: 'Half marathon', metres: 21097.5 },
+  { id: '30k', label: '30K', metres: 30000 },
+  { id: 'marathon', label: 'Marathon', metres: 42195 },
 ] as const;
 
 export type BenchmarkDistance = (typeof BENCHMARK_DISTANCES)[number];

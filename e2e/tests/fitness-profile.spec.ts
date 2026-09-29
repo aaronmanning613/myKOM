@@ -14,6 +14,7 @@ test('enters Benchmarks, which persist across a reload', async ({ page }) => {
   await time('1 mile').fill('6:10');
   await time('5K').fill('20:00');
   await time('10K').fill('2520');
+  await time('8K').fill('32:40');
   await expect(page.getByText('4:00/km')).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toHaveText('Fitness Profile saved.');
@@ -22,6 +23,7 @@ test('enters Benchmarks, which persist across a reload', async ({ page }) => {
   await expect(time('1 mile')).toHaveValue('6:10');
   await expect(time('5K')).toHaveValue('20:00');
   await expect(time('10K')).toHaveValue('42:00');
+  await expect(time('8K')).toHaveValue('32:40');
   await expect(time('400m')).toHaveValue('');
 
   await page.getByRole('button', { name: 'Clear 5K' }).click();
@@ -31,4 +33,5 @@ test('enters Benchmarks, which persist across a reload', async ({ page }) => {
   await page.reload();
   await expect(time('5K')).toHaveValue('');
   await expect(time('1 mile')).toHaveValue('6:10');
+  await expect(time('8K')).toHaveValue('32:40');
 });
