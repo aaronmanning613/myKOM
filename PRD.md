@@ -95,7 +95,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Lists
 
-- [ ] **M2** "View on Strava" in the lists (spec: UI → Results page):
+- [x] **M2** "View on Strava" in the lists (spec: UI → Results page):
   - `ResultsSection` rows show a "View on Strava" link under the distance · grade · km line, styled and opening as in Decisions;
   - this covers all three sections on the Results page and the wizard's step 3, which reuses `ResultsSection`;
   - the row's layout and columns stay as they are at phone width (no horizontal overflow at 375 px).

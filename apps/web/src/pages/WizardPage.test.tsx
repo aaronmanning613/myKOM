@@ -192,6 +192,9 @@ describe('the first-run wizard', () => {
     expect(screen.getByText('12 of ~12 runs checked · 9 Segments found.')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Your targets (2)' })).toBeVisible();
     expect(screen.getByRole('row', { name: /Colborne Lodge Hill/ })).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'View Colborne Lodge Hill on Strava' }),
+    ).toHaveAttribute('href', 'https://www.strava.com/segments/2');
 
     // Done: no more polling.
     await act(() => vi.advanceTimersByTimeAsync(RESULTS_POLL_MS * 2));

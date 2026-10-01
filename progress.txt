@@ -28,3 +28,18 @@
   Segment items now use `additionalProperties: { not: {} }` to really reject (400). Other routes
   are unchanged. Segments fetched by the fake Strava in api tests send `map.polyline: ''`, which
   the client stores as null.
+
+## M2 - "View on Strava" in the lists (2026-10-01)
+- Done: `StravaLink` (exported from results/ResultsSection.tsx) under each row's distance ·
+  grade · km line: visible text "View on Strava", `aria-label="View <name> on Strava"`, href
+  from `stravaSegmentUrl`, `target="_blank"`, `rel="noopener noreferrer"`, bold, underlined,
+  `#FC5200`. It covers all three Results sections and the wizard's step 3.
+- Verified: pnpm typecheck, lint, test (shared 238, web 108, api 421), test:e2e (33) all pass.
+  New ResultsPage test checks href/target/rel/name/text for every row in all three sections;
+  the wizard test checks a step-3 link; the e2e results spec (desktop + 375 px) checks Canal
+  Dash's link against the segmentId from GET /api/results, and that the page doesn't overflow.
+  MCP click-through on `E2E=1 pnpm dev` with a seeded Runner at 1280 px and 375 px: links in all
+  three sections in Strava orange, bold; clicking opens a new tab; no overflow at 375 px; no
+  console errors beyond the pre-sign-in 401. No Strava reads.
+- Notes: /api/test/segments gives Segments random ids and replies 204, so e2e reads the ids
+  back from GET /api/results. M4/M5 can reuse `StravaLink` in the popup.

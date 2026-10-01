@@ -5,6 +5,7 @@ import {
   LOW_CONFIDENCE_MAX_GRADE,
   type PredictionReason,
   type ResultRow,
+  stravaSegmentUrl,
 } from '@mykom/shared';
 import type { ReactNode } from 'react';
 
@@ -60,6 +61,21 @@ function Predicted({ predicted }: { predicted: ResultRow['predicted'] }) {
   );
 }
 
+/** "View on Strava", the wording Strava's brand guidelines ask for, in Strava orange. */
+export function StravaLink({ segmentId, name }: { segmentId: number; name: string }) {
+  return (
+    <a
+      href={stravaSegmentUrl(segmentId)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`View ${name} on Strava`}
+      className="font-bold text-[#FC5200] underline"
+    >
+      View on Strava
+    </a>
+  );
+}
+
 function Row({ row, now }: { row: ResultRow; now: Date }) {
   const age = recordAge(row.recordCheckedAt, now);
   return (
@@ -91,6 +107,9 @@ function Row({ row, now }: { row: ResultRow; now: Date }) {
           {row.kmFromCentre.toFixed(1)} km away
         </div>
         {age && <div className="text-xs text-gray-500">{age}</div>}
+        <div className="text-xs">
+          <StravaLink segmentId={row.segmentId} name={row.name} />
+        </div>
       </td>
       <td className="py-2 pr-2 text-right tabular-nums">
         {row.athleteCount.toLocaleString('en-US')}

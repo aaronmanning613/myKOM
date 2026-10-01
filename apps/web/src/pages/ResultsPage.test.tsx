@@ -189,6 +189,29 @@ describe('Results', () => {
     expect(rowFor('Glitchy Straight')).toHaveTextContent('⚠ Suspicious');
   });
 
+  it('links every row in all three lists to its Segment on Strava', async () => {
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () => json({ ...fast, nearestMisses: slow.nearestMisses }),
+    });
+    renderPage();
+
+    await screen.findByRole('row', { name: /Canal Dash/ });
+    for (const [segmentId, name] of [
+      [1, 'Canal Dash'],
+      [2, 'Bridge Sprint'],
+      [3, 'Parliament Hill'],
+      [11, 'Closest Miss'],
+      [4, 'Glitchy Straight'],
+    ] as const) {
+      const link = within(rowFor(name)).getByRole('link', { name: `View ${name} on Strava` });
+      expect(link).toHaveTextContent(/^View on Strava$/);
+      expect(link).toHaveAttribute('href', `https://www.strava.com/segments/${segmentId}`);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
   it('shows Nearest misses for a slow Runner, with no prediction as "—"', async () => {
     stubApi({ ...signedIn(), 'GET /api/results': () => json(slow) });
     renderPage();

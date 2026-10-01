@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type { Results } from '@mykom/shared';
 import { signIn } from './sign-in';
 
 const CENTRE = { lat: 45.42, lng: -75.69 };
@@ -76,6 +77,19 @@ for (const viewport of viewports) {
       await expect(rows.nth(2)).toContainText('Rideau Hill');
       await expect(rows.nth(2).getByRole('img', { name: 'Held' })).toBeVisible();
       await expect(rows.nth(2)).toContainText('record checked 5 weeks ago');
+      const stored = (await (await page.request.get('/api/results')).json()) as Results;
+      const canalDash = stored.targets.find((r) => r.name === 'Canal Dash')!;
+      const link = rows.nth(1).getByRole('link', { name: 'View Canal Dash on Strava' });
+      await expect(link).toHaveText('View on Strava');
+      await expect(link).toHaveAttribute(
+        'href',
+        `https://www.strava.com/segments/${canalDash.segmentId}`,
+      );
+      await expect(link).toHaveAttribute('target', '_blank');
+      // The link line keeps the phone layout inside the viewport.
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
 
       const misses = page.getByRole('region', { name: /^Nearest misses/ });
       await expect(misses.getByRole('heading')).toHaveText('Nearest misses (1)');
