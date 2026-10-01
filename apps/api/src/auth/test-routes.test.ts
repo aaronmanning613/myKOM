@@ -1,7 +1,14 @@
-import type { FitnessProfile, Me, Results } from '@mykom/shared';
+import { encodePolyline, type FitnessProfile, type Me, type Results } from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
-import { activities, benchmarks, runners, segments, stravaTokens } from '../db/schema.js';
+import {
+  activities,
+  benchmarks,
+  runnerSegments,
+  runners,
+  segments,
+  stravaTokens,
+} from '../db/schema.js';
 import { saveSearchArea } from '../search-area/store.js';
 import { STRAVA_DEAUTHORIZE_URL } from '../strava/client.js';
 import { testModeStravaFetch } from '../strava/test-fetch.js';
@@ -226,6 +233,73 @@ describe('POST /api/test/segments', () => {
       await db.delete(runners).where(eq(runners.id, runnerId));
       if (ids.length) await db.delete(segments).where(inArray(segments.id, ids));
     }
+    await app.close();
+  });
+  it('stores a given polyline as is, with the Segment’s end at its last point', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const login = await app.inject({ method: 'POST', url: '/api/test/login' });
+    const runnerId = login.json<{ id: number }>().id;
+    runnerIds.push(runnerId);
+    const cookies = {
+      [SESSION_COOKIE]: login.cookies.find((c) => c.name === SESSION_COOKIE)!.value,
+    };
+    const polyline = encodePolyline([
+      { lat: 45.42, lng: -75.69 },
+      { lat: 45.425, lng: -75.688 },
+    ]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/test/segments',
+      cookies,
+      payload: {
+        segments: [
+          { ...segment, polyline },
+          { ...segment, name: 'No route' },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(204);
+    const stored = await db
+      .select({
+        id: segments.id,
+        name: segments.name,
+        polyline: segments.polyline,
+        endLat: segments.endLat,
+        endLng: segments.endLng,
+      })
+      .from(segments)
+      .innerJoin(runnerSegments, eq(runnerSegments.segmentId, segments.id))
+      .where(eq(runnerSegments.runnerId, runnerId))
+      .orderBy(segments.name);
+    try {
+      expect(stored).toEqual([
+        { id: expect.any(Number), name: 'Canal Dash', polyline, endLat: 45.425, endLng: -75.688 },
+        { id: expect.any(Number), name: 'No route', polyline: null, endLat: null, endLng: null },
+      ]);
+    } finally {
+      await db.delete(runners).where(eq(runners.id, runnerId));
+      const ids = stored.map((row) => row.id);
+      if (ids.length) await db.delete(segments).where(inArray(segments.id, ids));
+    }
+    await app.close();
+  });
+
+  it('rejects unknown fields', async () => {
+    const { app } = buildTestApp(database, { testRoutes: true });
+    const login = await app.inject({ method: 'POST', url: '/api/test/login' });
+    runnerIds.push(login.json<{ id: number }>().id);
+    const cookies = {
+      [SESSION_COOKIE]: login.cookies.find((c) => c.name === SESSION_COOKIE)!.value,
+    };
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/test/segments',
+      cookies,
+      payload: { segments: [{ ...segment, route: [[45.42, -75.69]] }] },
+    });
+    expect(res.statusCode).toBe(400);
     await app.close();
   });
 });

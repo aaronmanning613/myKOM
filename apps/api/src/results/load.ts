@@ -81,6 +81,7 @@ async function knownSegments(
         xoms: { kom: segment.komRaw, qom: segment.qomRaw },
         athleteCount: segment.athleteCount ?? 0,
         fetchedAt: segment.detailFetchedAt.toISOString(),
+        polyline: segment.polyline,
       },
     };
   });
@@ -101,6 +102,8 @@ function toRow(row: RankedRow): ResultRow {
     held: row.held,
     implausible: row.implausible,
     recordCheckedAt: segment.details.fetchedAt,
+    start: segment.start,
+    polyline: segment.details.polyline,
   };
 }
 

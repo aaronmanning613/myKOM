@@ -188,7 +188,13 @@ async function seedRuns(runnerId: number, count: number, firstRow = 0) {
 }
 
 /** A Known Segment with its details already stored (from an earlier search). */
-async function seedStoredSegment(runnerId: number, id: number, start: LatLng, kom: string) {
+async function seedStoredSegment(
+  runnerId: number,
+  id: number,
+  start: LatLng,
+  kom: string,
+  polyline: string | null = null,
+) {
   await database()
     .db.insert(segments)
     .values({
@@ -201,6 +207,7 @@ async function seedStoredSegment(runnerId: number, id: number, start: LatLng, ko
       totalElevationGain: 0,
       startLat: start.lat,
       startLng: start.lng,
+      polyline,
       komRaw: kom,
       qomRaw: kom,
       athleteCount: 5000,
@@ -321,6 +328,41 @@ describe('POST /api/search', () => {
     // Stored details weren't read again.
     expect(reads('/segments/').filter((path) => path.endsWith('/segments/1'))).toEqual([]);
     expect(reads('/activities')).toHaveLength(3);
+  });
+
+  it('gives each row its start and stored polyline, reading nothing more for geometry', async () => {
+    // The same search twice, by two Runners: stored Segments with and without polylines.
+    const search = async (firstId: number, withPolylines: boolean) => {
+      const session = await signIn();
+      const route = [at(0, 100), at(0, 600), at(200, 900)];
+      await seedStoredSegment(
+        session.id,
+        firstId,
+        at(0, 100),
+        '3:05',
+        withPolylines ? encodePolyline(route) : null,
+      );
+      await seedStoredSegment(session.id, firstId + 1, at(100, 0), '2:50');
+      await seedRuns(session.id, 2, firstId % 10);
+      fetch.mockClear();
+      const results = (await postSearch(session)).json<Results>();
+      return { results, route, calls: fetch.mock.calls.length };
+    };
+
+    const without = await search(10, false);
+    const withPolylines = await search(20, true);
+
+    const stored = withPolylines.results.targets.find((row) => row.segmentId === 20)!;
+    expect(stored.start).toEqual(at(0, 100));
+    expect(stored.polyline).toBe(encodePolyline(withPolylines.route));
+    expect(without.results.targets.find((row) => row.segmentId === 10)!.polyline).toBeNull();
+    const miss = withPolylines.results.nearestMisses.find((row) => row.segmentId === 21)!;
+    expect(miss).toMatchObject({ start: at(100, 0), polyline: null });
+    // The burst's Segments came with an empty `map.polyline`, so they have none.
+    expect(
+      withPolylines.results.targets.filter((row) => row.segmentId > 1000).map((r) => r.polyline),
+    ).toEqual([null, null]);
+    expect(withPolylines.calls).toBe(without.calls);
   });
 
   it('includes starred Segments, read on each search', async () => {

@@ -73,6 +73,8 @@ function row(segmentId: number, name: string): ResultRow {
     held: false,
     implausible: false,
     recordCheckedAt: new Date().toISOString(),
+    start: { lat: 43.65, lng: -79.4637 },
+    polyline: null,
   };
 }
 

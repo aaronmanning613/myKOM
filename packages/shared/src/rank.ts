@@ -1,4 +1,5 @@
 import { isImplausible } from './implausible.js';
+import type { LatLng } from './polyline.js';
 import { predict, type PredictBenchmark, type PredictSegment, type Prediction } from './predict.js';
 import type { SearchArea } from './search-area.js';
 import { isHeld, recordFor, type RecordGender, type RecordSource } from './target-record.js';
@@ -16,12 +17,14 @@ export type SegmentDetails = PredictSegment &
     athleteCount: number;
     /** ISO 8601 timestamp of the detail fetch, for the record's age. */
     fetchedAt: string;
+    /** The stored encoded `map.polyline`, for the Segment map; null when none is stored. */
+    polyline: string | null;
   };
 
 /** One of the Runner's Known Segments, with their Segment PB. */
 export type KnownSegment = {
   id: number;
-  start: { lat: number; lng: number };
+  start: LatLng;
   /** Null while the Segment is pending (seen only in an effort summary). */
   details: SegmentDetails | null;
   /** The Runner's Segment PB in seconds; null when they've never run it (starred only). */

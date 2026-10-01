@@ -23,6 +23,8 @@ function row(overrides: Partial<ResultRow> & Pick<ResultRow, 'segmentId' | 'name
     held: false,
     implausible: false,
     recordCheckedAt: daysAgo(2),
+    start: { lat: 45.425, lng: -75.69 },
+    polyline: null,
     ...overrides,
   };
 }

@@ -11,3 +11,20 @@
 # - Verified: commands run and their result
 # - Notes: TODO(decision) items, blockers, anything the next iteration should know
 #
+
+## M1 - Geometry and the Strava URL in the results payload (2026-10-01)
+- Done: shared `stravaSegmentUrl(id)` (strava-url.ts); `ResultRow` gains `start` and `polyline`
+  (stored encoded string or null); `SegmentDetails` (KnownSegment.details) gains `polyline`, filled
+  by results/load.ts from `segments.polyline`; rank passes it through untouched.
+  `POST /api/test/segments` takes an optional encoded `polyline`, stored as is, with
+  end_lat/end_lng from its last point.
+- Verified: pnpm typecheck, lint, test (shared 238, web 107, api 421), test:e2e (33) all pass.
+  New tests: strava-url.test.ts; results/routes.test.ts and search/routes.test.ts check rows'
+  `start`/`polyline` (null when none stored); the search test runs the same search with and without
+  stored polylines and asserts the same Strava fetch count; test-routes.test.ts stores a polyline
+  (+ end point) and rejects an unknown field.
+- Notes: Fastify's Ajv runs with `removeAdditional: true`, so `additionalProperties: false`
+  silently STRIPS unknown fields rather than rejecting them (true of every route). The test
+  Segment items now use `additionalProperties: { not: {} }` to really reject (400). Other routes
+  are unchanged. Segments fetched by the fake Strava in api tests send `map.polyline: ''`, which
+  the client stores as null.

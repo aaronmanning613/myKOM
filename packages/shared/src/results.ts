@@ -1,3 +1,4 @@
+import type { LatLng } from './polyline.js';
 import type { Prediction } from './predict.js';
 import type { ExclusionReason } from './rank.js';
 import type { SearchArea } from './search-area.js';
@@ -24,6 +25,10 @@ export type ResultRow = {
   implausible: boolean;
   /** ISO 8601: when the record was last read from Strava, for its age. */
   recordCheckedAt: string;
+  /** Where the Segment starts. */
+  start: LatLng;
+  /** The stored encoded polyline (not decoded); null when none is stored. */
+  polyline: string | null;
 };
 
 /** The Search Area's crawl: "N of ~M Segments checked". */

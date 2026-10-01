@@ -39,6 +39,7 @@ function seg(id: number, options: Options = {}): KnownSegment {
     xoms: { kom: options.kom === undefined ? record : options.kom, qom: options.qom ?? null },
     athleteCount,
     fetchedAt: '2026-09-01T00:00:00Z',
+    polyline: null,
   };
   return {
     id,

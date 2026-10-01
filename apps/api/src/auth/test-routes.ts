@@ -1,7 +1,7 @@
 // Test-only routes, so end-to-end tests can sign in without real Strava credentials.
 // buildApp registers them only when `testRoutes` is on, which readEnv never allows in production.
 import { randomInt } from 'node:crypto';
-import { formatTime, type FitnessProfile, type Me } from '@mykom/shared';
+import { decodePolyline, formatTime, type FitnessProfile, type Me } from '@mykom/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '../db/client.js';
@@ -74,6 +74,8 @@ type TestSegment = {
   pb?: number | null;
   /** How long ago the record was read (default 0). */
   recordAgeDays?: number;
+  /** The encoded `map.polyline`, stored as is; its last point is the Segment's end. */
+  polyline?: string;
 };
 
 type TestSegmentsBody = { segments: TestSegment[] };
@@ -88,7 +90,9 @@ const testSegmentsSchema = {
       items: {
         type: 'object',
         required: ['name', 'lat', 'lng', 'distance', 'averageGrade', 'athleteCount', 'record'],
-        additionalProperties: false,
+        // Rejects unknown fields (a misspelt one would otherwise seed the wrong Segment):
+        // Fastify's Ajv silently strips them where this is `false`.
+        additionalProperties: { not: {} },
         properties: {
           name: { type: 'string' },
           lat: { type: 'number', minimum: -90, maximum: 90 },
@@ -101,6 +105,7 @@ const testSegmentsSchema = {
           record: { type: 'integer', minimum: 1 },
           pb: { type: ['integer', 'null'], minimum: 1 },
           recordAgeDays: { type: 'number', minimum: 0 },
+          polyline: { type: 'string' },
         },
       },
     },
@@ -197,6 +202,7 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
       for (const segment of request.body.segments) {
         const id = randomInt(1, 2 ** 47);
         const record = formatTime(segment.record);
+        const end = segment.polyline ? decodePolyline(segment.polyline).at(-1) : undefined;
         await db.insert(segments).values({
           id,
           name: segment.name,
@@ -207,6 +213,9 @@ export const testRoutes: FastifyPluginAsync<TestRoutesOptions> = async (
           totalElevationGain: segment.totalElevationGain ?? 0,
           startLat: segment.lat,
           startLng: segment.lng,
+          endLat: end?.lat ?? null,
+          endLng: end?.lng ?? null,
+          polyline: segment.polyline ?? null,
           komSeconds: segment.record,
           qomSeconds: segment.record,
           komRaw: record,

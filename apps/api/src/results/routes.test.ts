@@ -156,6 +156,7 @@ async function seedSegment(
     hazardous = false,
     pending = false,
     fetchedAt = new Date(),
+    polyline = null,
   }: {
     start?: LatLng;
     kom?: string | null;
@@ -164,6 +165,7 @@ async function seedSegment(
     hazardous?: boolean;
     pending?: boolean;
     fetchedAt?: Date;
+    polyline?: string | null;
   } = {},
 ) {
   await database()
@@ -179,6 +181,7 @@ async function seedSegment(
       startLat: start.lat,
       startLng: start.lng,
       hazardous,
+      polyline,
       komRaw: kom,
       qomRaw: kom,
       athleteCount,
@@ -292,9 +295,29 @@ describe('GET /api/results', () => {
       held: false,
       implausible: false,
       recordCheckedAt: OLD_CHECK.toISOString(),
+      start: at(0, 100),
+      polyline: null,
     });
     expect(results.targets[1]).toMatchObject({ segmentId: 4, pb: 140, held: true });
     expect(results.suspicious[0]).toMatchObject({ record: 90, implausible: true, held: false });
+    expect(stravaReads()).toEqual([]);
+  });
+
+  it('gives each row its start and stored polyline, or null when none is stored', async () => {
+    const session = await signIn();
+    await saveSearchArea(database().db, session.id, AREA);
+    const route = encodePolyline([at(0, 100), at(0, 600), at(300, 900)]);
+    await seedSegment(session.id, 1, { polyline: route });
+    await seedSegment(session.id, 2, { start: at(300, 0), kom: '2:30' });
+
+    const results = (await getResults(session)).json<Results>();
+
+    expect(results.targets[0]).toMatchObject({ segmentId: 1, start: at(0, 100), polyline: route });
+    expect(results.nearestMisses[0]).toMatchObject({
+      segmentId: 2,
+      start: at(300, 0),
+      polyline: null,
+    });
     expect(stravaReads()).toEqual([]);
   });
 

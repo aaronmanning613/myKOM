@@ -81,7 +81,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Data
 
-- [ ] **M1** Geometry and the Strava URL in the results payload:
+- [x] **M1** Geometry and the Strava URL in the results payload:
   - `packages/shared`: `stravaSegmentUrl(id)` returns `https://www.strava.com/segments/<id>`;
   - `ResultRow` gains `start: LatLng` and `polyline: string | null` (the stored encoded polyline, not decoded);
   - `KnownSegment.details` gains `polyline: string | null`, and `apps/api/src/results/load.ts` fills both. `rank` is unchanged apart from passing it through;
