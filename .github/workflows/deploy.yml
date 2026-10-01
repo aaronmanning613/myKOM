@@ -91,6 +91,8 @@ jobs:
           docker push "$IMAGE"
 
       # `^|^` makes | the list separator, so a value may contain commas.
+      # TRUST_PROXY: Cloud Run terminates TLS, so the app reads https from X-Forwarded-Proto (Secure
+      # cookies and an https Strava redirect_uri).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$SERVICE" \
@@ -102,7 +104,7 @@ jobs:
             --max-instances 1 \
             --concurrency 80 \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRAVA_CLIENT_SECRET=STRAVA_CLIENT_SECRET:latest,TOKEN_ENCRYPTION_KEY=TOKEN_ENCRYPTION_KEY:latest" \
-            --set-env-vars "^|^STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID|NOMINATIM_USER_AGENT=$NOMINATIM_USER_AGENT|TICK_OIDC_AUDIENCE=$SERVICE_URL|TICK_SERVICE_ACCOUNT=$SCHEDULER_SERVICE_ACCOUNT"
+            --set-env-vars "^|^STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID|NOMINATIM_USER_AGENT=$NOMINATIM_USER_AGENT|TICK_OIDC_AUDIENCE=$SERVICE_URL|TICK_SERVICE_ACCOUNT=$SCHEDULER_SERVICE_ACCOUNT|TRUST_PROXY=true"
         env:
           RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
           STRAVA_CLIENT_ID: ${{ vars.STRAVA_CLIENT_ID }}
