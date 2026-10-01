@@ -49,15 +49,22 @@ regenerates from Strava.
   ```sh
   gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
     secretmanager.googleapis.com cloudscheduler.googleapis.com iamcredentials.googleapis.com \
-    sts.googleapis.com billingbudgets.googleapis.com
+    sts.googleapis.com billingbudgets.googleapis.com iam.googleapis.com
   ```
 
 - [ ] Create the **$1 budget alert**. It emails the billing account's admins when actual spend
-      reaches $1. It's only an alert: nothing gets shut down.
+      reaches $1. It's only an alert: nothing gets shut down. The amount must be in the billing
+<<<<<<< HEAD
+      account's currency (`gcloud billing accounts describe <BILLING_ACCOUNT_ID>
+  --format='value(currencyCode)'`); this one bills in CAD.
+=======
+      account's currency, which `gcloud billing accounts describe` shows as `currencyCode`. This one
+      bills in CAD.
+>>>>>>> ed1e711 (Deploy with TRUST_PROXY=true; deploy.md: budget in the billing currency, enable the IAM API; drop the setup wizard)
 
   ```sh
   gcloud billing budgets create --billing-account=<BILLING_ACCOUNT_ID> \
-    --display-name="myKOM \$1" --budget-amount=1USD \
+    --display-name="myKOM \$1" --budget-amount=1CAD \
     --filter-projects="projects/$PROJECT_ID" --threshold-rule=percent=1.0
   ```
 
@@ -184,8 +191,9 @@ In the repository's **Settings → Secrets and variables → Actions**, add:
   | `STRAVA_CLIENT_ID`               | the Strava app's client ID                                     |
   | `NOMINATIM_USER_AGENT`           | the app name and a contact, e.g. `myKOM/1.0 (you@example.com)` |
 
-The workflow uses nothing else. `TRUST_PROXY`, `MAXMIND_LICENSE_KEY` and `GEOLITE2_CITY_DB` aren't
-used in production.
+The workflow uses nothing else. It sets `TRUST_PROXY=true` itself, because Cloud Run terminates
+TLS: the app then reads `https` from `X-Forwarded-Proto`, so cookies are `Secure` and the Strava
+`redirect_uri` is https. `MAXMIND_LICENSE_KEY` and `GEOLITE2_CITY_DB` aren't used in production.
 
 ## 9. The first deploy
 
