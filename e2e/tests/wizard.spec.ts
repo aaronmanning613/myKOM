@@ -1,5 +1,5 @@
 import type { GeocodeResponse } from '@mykom/shared';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { signIn } from './sign-in';
 
 const PLACE = { label: 'High Park, Toronto, Ontario', lat: 43.6465, lng: -79.4637 };

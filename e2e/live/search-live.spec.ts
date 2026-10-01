@@ -1,7 +1,7 @@
 // The live smoke test: a real 1 km search on the test account returns ranked rows, within
 // MAX_SEARCH_READS Strava reads counted by the app's own usage counters.
 import type { LatLng, Results } from '@mykom/shared';
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '../tests/fixtures';
 import { signInLive } from './sign-in-live';
 
 /** The most the search (its interactive calls, first burst and results polls) may read. */

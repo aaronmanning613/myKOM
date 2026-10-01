@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { signIn } from './sign-in';
 
 const time = (page: Page, label: string) => page.getByLabel(label, { exact: true });

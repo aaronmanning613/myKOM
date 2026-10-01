@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { signIn } from './sign-in';
 
 const pages = [
@@ -13,7 +13,7 @@ const viewports = [
 ];
 
 // No horizontal scrolling at any width.
-async function overflows(page: import('@playwright/test').Page) {
+async function overflows(page: import('./fixtures').Page) {
   return page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );

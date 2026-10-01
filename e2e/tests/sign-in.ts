@@ -1,5 +1,5 @@
 import type { Me } from '@mykom/shared';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page } from './fixtures';
 
 /**
  * Signs a brand-new Runner in through the API's test-only route (never real Strava).

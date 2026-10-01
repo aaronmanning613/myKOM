@@ -122,7 +122,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - bounds for a route and for a start point;
     - stable ordering (targets first, then Nearest misses, in list order).
 
-- [ ] **M4** The map on the Results page:
+- [x] **M4** The map on the Results page:
   - add `leaflet`, `react-leaflet` and `@types/leaflet` to `apps/web`, then:
     - `SegmentMap.tsx`, lazily loaded, with a same-height placeholder;
     - Leaflet's CSS imported by the map chunk;

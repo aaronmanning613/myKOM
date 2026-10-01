@@ -7,6 +7,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { ResultsSection } from '../results/ResultsSection';
+import { SegmentMapPanel, showsSegmentMap } from '../results/SegmentMapPanel';
 import { ApiError, searchAreaApi } from '../search-area/api';
 
 export const RESULTS_POLL_MS = RESULTS_POLL_SECONDS * 1000;
@@ -220,6 +221,8 @@ function ResultsView({
           .
         </p>
       )}
+
+      {showsSegmentMap(results) && <SegmentMapPanel results={results} />}
 
       <ResultsSection title="Your targets" rows={results.targets} now={now} empty={emptyTargets} />
       {results.nearestMisses.length > 0 && (

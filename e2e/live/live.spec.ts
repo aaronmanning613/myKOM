@@ -1,7 +1,7 @@
 // Signed in as the real Strava Runner (`pnpm test:e2e:live`). About one Strava call per test.
 // Never click Disconnect here: in live mode the API blocks it, and the last test proves that.
 import type { GeocodeResponse } from '@mykom/shared';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../tests/fixtures';
 import { liveTokenFileDigest, signInLive } from './sign-in-live';
 
 test('signs in live, and the header shows the real Runner', async ({ page }) => {

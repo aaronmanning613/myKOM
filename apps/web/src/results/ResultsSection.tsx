@@ -47,7 +47,7 @@ const LOW_CONFIDENCE_REASONS: Partial<Record<PredictionReason, string>> = {
   rolling: 'Rough guess: rolling, with more climbing than its average grade shows',
 };
 
-function Predicted({ predicted }: { predicted: ResultRow['predicted'] }) {
+export function Predicted({ predicted }: { predicted: ResultRow['predicted'] }) {
   if (!predicted) return <>—</>;
   const time = formatTime(Math.round(predicted.seconds));
   if (predicted.confidence === 'high') return <>{time}</>;
@@ -61,7 +61,10 @@ function Predicted({ predicted }: { predicted: ResultRow['predicted'] }) {
   );
 }
 
-/** "View on Strava", the wording Strava's brand guidelines ask for, in Strava orange. */
+/**
+ * "View on Strava", the wording Strava's brand guidelines ask for, in Strava orange. The colour
+ * is `!important` so Leaflet's `.leaflet-container a` blue doesn't win inside map popups.
+ */
 export function StravaLink({ segmentId, name }: { segmentId: number; name: string }) {
   return (
     <a
@@ -69,7 +72,7 @@ export function StravaLink({ segmentId, name }: { segmentId: number; name: strin
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`View ${name} on Strava`}
-      className="font-bold text-[#FC5200] underline"
+      className="font-bold text-[#FC5200]! underline"
     >
       View on Strava
     </a>

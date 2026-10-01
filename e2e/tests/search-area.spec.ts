@@ -1,5 +1,5 @@
 import type { GeocodeResponse, LocateIpResponse } from '@mykom/shared';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { signIn } from './sign-in';
 
 // Nominatim and the IP lookup are stubbed in the browser, so e2e never reaches them.

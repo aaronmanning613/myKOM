@@ -29,5 +29,24 @@ export default tseslint.config(
       globals: { ...globals.browser },
     },
   },
+  {
+    // Every e2e spec uses the shared fixture, which answers map tile requests with a blank tile.
+    files: ['e2e/tests/**/*.ts', 'e2e/live/**/*.ts'],
+    ignores: ['e2e/tests/fixtures.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@playwright/test',
+              message: 'Import from e2e/tests/fixtures instead, so tests never fetch map tiles.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );

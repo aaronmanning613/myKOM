@@ -24,6 +24,9 @@ export const START_OUTLINE_COLOUR = '#ffffff';
 /** The zoom a start-only Segment is shown at. */
 export const START_ZOOM = 16;
 
+/** The map's height (Tailwind classes), shared with its loading placeholder so nothing shifts. */
+export const MAP_HEIGHT_CLASSES = 'h-[260px] sm:h-[400px]';
+
 export const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const TILE_MAX_ZOOM = 19;
 export const TILE_ATTRIBUTION =

@@ -60,3 +60,41 @@
   out of range, so routes also require every point within lat ±90 / lng ±180. The circle's
   bounds use a spherical approximation (6,371 km), fine for fitBounds in M4. Search Area grey is
   #6b7280 (gray-500); the route-start dot radius 4 is my pick for "small".
+
+## M4 - The map on the Results page (2026-10-01)
+- Done: leaflet 1.9.4, react-leaflet 5.0.0, @types/leaflet in apps/web. results/SegmentMap.tsx
+  (the lazy chunk; imports leaflet.css): OSM TileLayer, dashed grey non-interactive Search Area
+  Circle, per Segment a FeatureGroup with its Popup + either a Polyline (4 px) and a start dot
+  (r 4) or a start CircleMarker (r 7, white outline). classNames `segment-map-<id>` +
+  `segment-map-route` / `segment-map-start` (the route's start dot is `segment-map-route-start`).
+  scrollWheelZoom off, dragging = !L.Browser.mobile. FrameSearchArea fits on mount and when
+  centre/radius change only (12 px padding so the circle isn't on the border). Popup: crown +
+  name, Your target / Nearest miss, distance · grade, Record · Predicted · Your PB (reuses the
+  list's now-exported `Predicted`), "Start point only", StravaLink. results/SegmentMapPanel.tsx
+  (main bundle): React.lazy + same-height placeholder "Loading the map…", `<section
+  aria-label="Segment map" class="isolate">`, legend; `showsSegmentMap` = pending or any target /
+  Nearest miss. Placed just above Your targets. MAP_HEIGHT_CLASSES lives in
+  segment-map-features.ts so the panel doesn't import the chunk.
+  e2e: tests/fixtures.ts extends `test` with an auto `tiles` fixture (context.route answers
+  tile.openstreetmap.org/** with tests/blank-tile.png, records requested/served); every spec in
+  tests/ and live/ (and both sign-in helpers) imports test/expect from it, and an ESLint
+  no-restricted-imports rule bans value imports of @playwright/test in e2e/tests and e2e/live
+  (type imports allowed). New tests/segment-map.spec.ts seeds a route target, a start-only
+  target, a Nearest miss and a Suspicious record with a route (polylines via shared
+  encodePolyline; the M1 seeding route already took them).
+- Verified: pnpm typecheck, lint, test (shared 238, web 123, api 421), test:e2e (35) all pass.
+  New: SegmentMapPanel.test.tsx (placeholder at map height, then region + legend); ResultsPage
+  tests (map + legend above Your targets; no map with no rows and nothing pending, even with
+  Suspicious records; circle-only map while pending). segment-map.spec (desktop + 375 px):
+  route/start/nearest-miss elements, colours, none for the Suspicious record, popups with name,
+  "Start point only", View on Strava href/target/rel and Strava orange, all tile requests served
+  by the fixture, no overflow. MCP click-through on `E2E=1 pnpm dev` at 1280 and 375 px with real
+  OSM tiles: tiles and SVG overlay undistorted by preflight (svg 881x478 px = its attributes,
+  tiles 256 px), so no override added; radius change refits; no console errors or warnings.
+- Notes: Leaflet's `.leaflet-container a { color }` is unlayered CSS and beat the Tailwind
+  utility, so StravaLink's colour is now `text-[#FC5200]!`. Gotchas for M5's e2e: a closing popup
+  stays in the DOM for its 200 ms fade (locate popups by name, not `.leaflet-popup` alone); an
+  open popup can cover other markers (close it via its × button first); a perfectly level route
+  has a zero-height box, which Playwright calls not visible. jsdom renders the map without
+  errors (no Leaflet mocking needed). React.lazy caches the chunk per test file, so only the
+  first render in a file sees the placeholder.

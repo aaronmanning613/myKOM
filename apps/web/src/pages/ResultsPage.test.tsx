@@ -405,6 +405,57 @@ describe('Results', () => {
   });
 });
 
+// Leaflet's drawing is covered in e2e (real Chrome); here, what React renders around it.
+describe('the Segment map', () => {
+  const LEGEND = /Your targets.*Nearest misses · a line is the whole Segment, a dot is its start/;
+  const map = () => screen.queryByRole('region', { name: 'Segment map' });
+
+  // The placeholder is covered in SegmentMapPanel.test.tsx: by now the lazy chunk is cached.
+  it('shows the map and its legend above the lists', async () => {
+    stubApi({ ...signedIn(), 'GET /api/results': () => json(fast) });
+    renderPage();
+
+    const region = await screen.findByRole('region', { name: 'Segment map' });
+    expect(screen.getByText(LEGEND)).toBeVisible();
+    expect(
+      region.compareDocumentPosition(section('Your targets')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('shows no map with no rows to draw and nothing pending', async () => {
+    // Suspicious records aren't drawn, so they don't bring the map on their own.
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () => json(results({ suspicious: fast.suspicious })),
+    });
+    renderPage();
+
+    expect(await screen.findByText(/No targets within 2 km yet/)).toBeVisible();
+    expect(map()).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading the map…')).not.toBeInTheDocument();
+    expect(screen.queryByText(LEGEND)).not.toBeInTheDocument();
+  });
+
+  it('shows the map (just the Search Area) while a search is pending with no rows yet', async () => {
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () =>
+        json(
+          results({
+            pending: true,
+            progress: null,
+            budget: { continuesTomorrow: true, pausedUntil: null },
+          }),
+        ),
+    });
+    renderPage();
+
+    expect(await screen.findByRole('region', { name: 'Segment map' })).toBeInTheDocument();
+    expect(screen.getByText(LEGEND)).toBeVisible();
+    expect(screen.getByText('None yet: your Segments are still being checked.')).toBeVisible();
+  });
+});
+
 describe('recordAge', () => {
   const now = new Date('2026-09-29T12:00:00Z');
   const at = (days: number) => new Date(now.getTime() - days * DAY_MS).toISOString();
