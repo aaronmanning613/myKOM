@@ -1,23 +1,41 @@
-# PRD: myKOM core
+# PRD: the Segment map
 
 ## Goal
 
-Build myKOM on top of the merged foundation:
+Add a map to the Results page, and links from every Segment to its page on Strava:
 
-- a Fitness Profile generated from the Runner's Strava runs;
-- the Predicted Time model;
-- gathering Known Segments within Strava's rate limits;
-- ranking into Your targets, Nearest misses and Suspicious records;
-- the first-run wizard, the Fitness Profile, Search Area and Results pages, and the suggestion banner;
-- everything needed to deploy.
+- the map shows the Segments myKOM suggests (Your targets and Nearest misses) inside the Search Area;
+- a Segment is drawn as its **full route** when its polyline is stored, and as its **start point** otherwise;
+- every Segment links to `https://www.strava.com/segments/<id>` ("View on Strava"), from the map and from the lists.
 
-**The source of truth is the spec, [Spec: myKOM](https://github.com/aaronmanning613/myKOM/issues/27)** (`gh issue view 27`). Each task below names the spec section it builds. Read that section before starting, because the task lines are summaries. Where a task and the spec disagree, the spec wins. Domain terms are defined in `CONTEXT.md`; use them in code, UI and tests.
+**The source of truth is this PRD.** There's no separate spec issue for the map. [Spec: myKOM](https://github.com/aaronmanning613/myKOM/issues/27) (`gh issue view 27`) still governs everything else, and tasks name its sections where they touch them (UI → Results page, Strava API Policy stance). This PRD lifts one item from #27's Out of Scope: "A map view". Domain terms are defined in `CONTEXT.md`; use them in code, UI and tests.
 
-The foundation loop's PRD and progress log are archived in `docs/ralph/foundation/`. Its progress log records tooling gotchas (pnpm build approvals, ESM `.js` imports, live-test rules) that still apply.
+The core loop's PRD and progress log are archived in `docs/ralph/core/`, and the foundation loop's in `docs/ralph/foundation/`. Their progress logs record tooling gotchas (pnpm build approvals, ESM `.js` imports, live-test rules, Playwright's substring role-name matching) that still apply.
+
+This work lives on the `feature/segment-map` branch. Never push, merge or switch branches.
+
+## Decisions
+
+These were made up front, so the loop doesn't need to ask. Follow them; anything they don't cover gets the usual `TODO(decision)` treatment.
+
+- **Geometry costs no Strava reads.** A Segment's `map.polyline` already arrives with its Segment details, which every ranked Segment has, and is stored in `segments.polyline`. The map uses only stored data: the polyline when it's stored and decodes to at least 2 points, otherwise the stored start point. Nothing fetches geometry, so a missing polyline is never fetched (no streams, no extra detail calls).
+- **What's on the map:** Your targets and Nearest misses. Suspicious records are left off the map, because they aren't suggestions, but they keep their Strava links in the list. The Search Area is drawn as a circle around its centre.
+- **Library:** `leaflet` with `react-leaflet` (v5, for React 19), plus `@types/leaflet`. React renders popup content, so Segment names (written by Strava users) are escaped. Never build popup HTML from strings.
+- **Tiles:** OpenStreetMap's standard tiles, `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, max zoom 19, with the attribution "© OpenStreetMap contributors" linking to `https://www.openstreetmap.org/copyright`. myKOM's traffic (≤ 10 Runners) is well inside the OSM tile usage policy. There's no API key and no other provider.
+- **Markers:** only `CircleMarker`s and `Polyline`s. Leaflet's default `Marker` needs image assets that break under bundlers.
+- **Colours:** Your targets are orange (`#ea580c`, the app's orange-600). Nearest misses are blue (`#2563eb`). The Search Area circle is grey, dashed, with no fill. Each route is a 4 px line with a small filled circle at its start. Each start-only Segment is a larger filled circle (radius 7) with a white outline.
+- **Placement and size:** the map goes on the Results page between the summary/status lines and Your targets. It's full width and 260 px tall on phones, 400 px from the `sm` breakpoint. A one-line legend sits under it: "● Your targets ● Nearest misses · a line is the whole Segment, a dot is its start".
+- **Framing:** the map fits the Search Area circle's bounds on first render, and again whenever the Search Area (centre or radius) changes. It never refits on a results poll, so a Runner's own pan and zoom survive the "refining" updates.
+- **Gestures:** scroll-wheel zoom is off, so the page scrolls past the map. On touch devices one-finger dragging is off too (`dragging: !L.Browser.mobile`), so the page still scrolls on phones. Zoom works with the +/− buttons and pinch.
+- **Popup** (opened by clicking or tapping a Segment): the name with 👑 when Held, then "Your target" or "Nearest miss", then distance · average grade, then Record / Predicted / Your PB in the list's formats, then a "View on Strava" link. A start-only Segment adds "Start point only".
+- **Strava links:** the text is exactly "View on Strava" (Strava's brand guidelines), styled bold and underlined in Strava orange `#FC5200`. Links open in a new tab with `rel="noopener noreferrer"`. The URL comes from one shared helper, `stravaSegmentUrl(id)`. Lists show the link in every row of all three sections, on the Results page and in the wizard's step 3.
+- **List → map:** each row in Your targets and Nearest misses on the Results page gets a "Show on map" button. It scrolls the map into view, fits the map to that Segment (its route's bounds, or zoom 16 on its start), and opens its popup. The wizard has no map, so it has no such button.
+- **Loading:** the map is a lazily loaded chunk (`React.lazy`), so Leaflet isn't in the main bundle. A placeholder with the same height stands in while it loads, so nothing shifts. The lists never wait for the map.
+- **No map** when there are no rows to draw and nothing is pending. The bigger-radius empty state already covers that. While a search is pending with no rows yet, the map shows just the Search Area circle.
 
 ## Stack
 
-This is unchanged from the foundation:
+This is unchanged:
 
 - TypeScript (strict), pnpm workspaces, Node 22;
 - `apps/api` is Fastify + Drizzle + Postgres 16 (docker compose, host port 5433);
@@ -25,263 +43,122 @@ This is unchanged from the foundation:
 - `packages/shared` holds code used by both;
 - Vitest, Playwright (`channel: 'chrome'`), ESLint + Prettier.
 
+The new dependencies are `leaflet`, `react-leaflet` and `@types/leaflet`, in `apps/web` only.
+
 ## Conventions
 
-The foundation's conventions still apply:
+The core conventions still apply (see `docs/ralph/core/PRD.md`):
 
-- Config comes from `.env` (never read or print it). Every variable goes in `.env.example`.
-- Tests never hit real external APIs.
-- **UI verification:** after UI work, click through with the Playwright MCP browser at desktop and phone width, then make sure an e2e test covers the same flow.
+- config comes from `.env` (never read or print it);
+- the domain core is pure;
+- test at the highest seam that covers the behaviour;
+- never store raw Strava JSON;
+- never show another athlete's name or photo;
+- never call Predicted Time ÷ Target Record a "gap";
+- **UI verification:** after UI work, click through with the Playwright MCP browser at desktop and phone width, then make sure an e2e test covers the same flow;
 - e2e tests sign in with `POST /api/test/login`.
 
 New conventions:
 
-- **The domain core is pure.** Fitness Profile generation, VDOT, `xoms` parsing, the Predicted Time model, the Implausible check and `rank(...)` live in `packages/shared` with **no I/O** (no DB, fetch, clock or env). The time is passed in. The API and web call them. This is test seam 1.
-- **The job queue** (`drain(...)` against Postgres, with a Strava client passed in) is test seam 2. **The HTTP API** (`app.inject`, with a fake Strava at `fetch`) is test seam 3. Test external behaviour at the highest seam that covers it. Don't test private helpers.
-- **Tunables:** every constant in the spec's Tunables table is one named, exported constant in a single shared module, with a comment saying whether it's decided or a starting value.
-- **Strava fixtures:** faked Strava responses must match the shape of real ones. A task may capture real responses from the live account (`.strava-live-token.json`, through the existing live token store), using **at most 10 Strava calls per task**, and save them as scrubbed fixtures: no tokens, and no other athletes' names or photos (drop `local_legend` and similar). Keep only the fields myKOM reads.
-- **Never store raw Strava JSON** in the database. Map responses to our own shapes at the Strava client.
-- **Words:** never use "gap" for Predicted Time ÷ Target Record (on Strava, GAP means grade adjusted pace). Call it the **record ratio**. Never show another athlete's name or photo.
-- **Migrations:** one drizzle-kit migration per task that changes the schema, applied by `pnpm db:migrate`. Existing data must migrate, not be dropped (except where a task says so).
+- **Tests never fetch map tiles.** jsdom doesn't load images. In e2e, a shared Playwright fixture answers every `https://tile.openstreetmap.org/**` request with a bundled 256×256 blank PNG, and every spec uses that fixture. The MCP click-through may load real tiles (a handful of requests, within the usage policy).
+- **Leaflet in jsdom:** component tests cover what React renders (the map container, legend, placeholder, buttons, links). The decisions about what to draw live in a pure module with its own unit tests. Real map rendering and clicking on Segments are covered in e2e (real Chrome). Don't mock Leaflet internals to assert on call order.
+- **e2e targeting:** every drawn Segment gets the Leaflet `className` `segment-map-<segmentId>`, plus `segment-map-route` or `segment-map-start`, so specs can find and click it.
 
 ## Out of scope
 
-- everything in the spec's Out of Scope section;
-- webhooks, altitude streams, `/segments/explore`, the leaderboard endpoint, scraping;
-- a map view;
-- a Runner-set margin;
-- the IP fallback in production;
-- anything that provisions real cloud resources (see "Human setup" at the end).
+- fetching any geometry from Strava (streams, extra detail calls, `/segments/explore`), or refetching Segments whose polyline is missing;
+- a map anywhere other than the Results page (not in the wizard, the Search Area page or Mapped Areas);
+- marker clustering, heatmaps, elevation profiles, directions or routing, and drawing the Runner's own runs;
+- other tile providers, API keys, offline tiles and a satellite layer;
+- map → list highlighting (the map's popups carry everything the row does);
+- showing Suspicious records on the map;
+- remembering the map's pan and zoom across visits, and a hide/show toggle;
+- anything that changes ranking, the Strava budget, or the database schema (no migration is needed: `segments.polyline` already exists).
 
 ## Tasks
 
 Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e`, before it's ticked.
 
-### Domain core (spec: Fitness Profile generation, Predicted Time model, Target Record/Held/Implausible, Ranking, Tunables)
+### Data
 
-- [x] **C1** Benchmark distances 7 → 13.
-  - The shared distance list becomes 400 m, 800 m, 1K, 1 mile, 3K, 5K, 8K, 10K, 15K, 10 mile, half (21,097.5 m), 30K and marathon (42,195 m). ½ mile and 2 mile are dropped.
-  - Add a migration that deletes stored Benchmarks for the dropped distances.
-  - Update the Fitness Profile screen, the API validation and every test.
-  - Also add the tunables module (see Conventions) holding the spec's full Tunables table.
-  - **Check:** shared, API and web tests pass with 13 rows; the Fitness Profile e2e test enters and persists a Benchmark at a new distance (e.g. 8K).
-- [x] **C2** VDOT in the shared core:
-  - `vdotOf(metres, seconds)` and `timeFor(vdot, metres)` (Daniels & Gilbert; the exact formulas are in the spec);
-  - `benchmarksFromVdot(vdot)` giving all 13;
-  - `updateAllFrom(distance, seconds)`.
-  - **Check:** table tests reproduce the spec's numbers: VDOT 71.1 → 5K 14:43, 10K 30:36, marathon 2:21:16; a 16:00 5K → 10K 33:13, half 1:13:19, marathon 2:33:26 (±1 s).
-- [x] **C3** `generateFitnessProfile(activities, now)`:
-  - use runs only, from the last 3 years;
-  - for each distance D, use runs in the 0.98 D–1.06 D band, scale to D by moving time × D ÷ distance, and take the fastest;
-  - score them by VDOT and average the best two, but the second only counts if it's within 8 of the best;
-  - return `{ vdot, sources: 1–2 runs, benchmarks } | null`.
-  - **Check:** table tests cover:
-    - the test-account case (marathon 2:21:03 + 10K 30:39 → VDOT ≈ 71.1);
-    - one race plus easy runs (the guard drops the easy run);
-    - no qualifying runs → null;
-    - runs older than 3 years are ignored;
-    - moving time is used, not elapsed;
-    - a run just outside the band is ignored.
-- [x] **C4** Target Record parsing:
-  - `parseXoms` accepts `"17s"`, `"1:24"` and `"h:mm:ss"`, and anything else is `unparseable`;
-  - `recordFor(segment, gender)` returns seconds, or a status of `hazardous`/`missing`/`unparseable`;
-  - `isHeld(pb, record)` counts whole-second ties as Held, and a missing PB is not Held.
-  - **Check:** table tests for every format, hazardous, missing gender, garbage strings and ties.
-- [x] **C5** The flat Predicted Time model:
-  - usable Benchmarks exclude **soft** ones (pace slower than a longer Benchmark's pace), and at least two are needed;
-  - log-log interpolation between neighbours;
-  - extrapolation past either end uses the two nearest Benchmarks' exponent clamped to 1.02–1.15, and is low confidence;
-  - return the soft set so the UI can flag it.
-  - **Check:** tests for interpolation exactness at Benchmark points, extrapolation both ends with clamping, soft detection, and < 2 usable → no prediction.
-- [x] **C6** Grade and the full `predict(benchmarks, segment, pb)`:
-  - equivalent flat distance: uphill uses Minetti `Cr(i)/3.6`; downhill is capped at 0.88 around −9.5%, easing linearly back to 1.0 by −20% (a starting value);
-  - rolling penalty (starting values from the spec);
-  - PB floor = min(model, PB), only when no Benchmark is pinned;
-  - Prediction Confidence with a reason: high when the PB floor set the time; otherwise low when outside the Benchmark range (including < 400 m), when |max grade| > 15%, or when the Segment is rolling; otherwise high.
-  - **Check:** tests for flat vs uphill vs downhill ordering, the downhill cap, rolling → low, pinned disables the floor, the floor → high, and the steep → low reason.
-- [x] **C7** Implausible Records:
-  - a world-record table (men's and women's; 100 m, 200 m, 400 m, 800 m, 1500 m, mile, 3000 m, 5000 m, 10,000 m, half, marathon, as constants with a source comment) is run through `predict` as a Fitness Profile (no PB floor) to get a grade-adjusted world-record time;
-  - `isImplausible(record, segment, gender)` is true when record < WR time × 1.05.
-  - **Check:** tests: a 160 m / 17 s KOM is **not** flagged (as the spec says); an obviously impossible record (e.g. 1 km in 1:30) is flagged; QOM uses the women's table.
-- [x] **C8** `rank(input)`, as sketched in the spec's Ranking section:
-  - area membership by the start point's great-circle distance;
-  - the exclusion reasons, in order;
-  - Your targets = Achievable (≤ record × 1.05) + all Held, minus non-Held Implausible; high confidence first, then Impressiveness desc, record ratio asc, id;
-  - Nearest misses when < 5 Achievable: up to 10, by record ratio;
-  - Suspicious = non-Held Implausible, by Impressiveness;
-  - counts;
-  - pending (no details) Segments are left out of the lists.
-  - **Check:** table tests for each list rule, Held + Implausible appearing only in the main list, the Nearest-misses threshold at exactly 4 vs 5, tie-breaks, and every exclusion reason.
+- [ ] **M1** Geometry and the Strava URL in the results payload:
+  - `packages/shared`: `stravaSegmentUrl(id)` returns `https://www.strava.com/segments/<id>`;
+  - `ResultRow` gains `start: LatLng` and `polyline: string | null` (the stored encoded polyline, not decoded);
+  - `KnownSegment.details` gains `polyline: string | null`, and `apps/api/src/results/load.ts` fills both. `rank` is unchanged apart from passing it through;
+  - `POST /api/test/segments` accepts an optional encoded `polyline` per Segment (stored as is) and stores `end_lat/end_lng` from its last point when given;
+  - nothing new is fetched from Strava.
+  - **Check:**
+    - a shared unit test for `stravaSegmentUrl`;
+    - seam-3 tests (`app.inject`): `GET /api/results` and `POST /api/search` rows carry `start` and the stored `polyline`, and `null` when none is stored;
+    - the fake Strava `fetch` sees no extra calls for geometry (compare the call count with and without polylines stored);
+    - `/api/test/segments` stores a given polyline and still rejects unknown fields.
 
-### Data and Strava (spec: Data model, Background work, Strava API Policy stance)
+### Lists
 
-- [x] **D1** Token encryption:
-  - Strava access and refresh tokens are stored AES-256-GCM encrypted, with the key from `TOKEN_ENCRYPTION_KEY` (32 bytes, base64; add it to `.env.example`);
-  - it's required when `NODE_ENV=production`; outside production, fall back to a fixed dev key and log a warning;
-  - a migration encrypts existing plain-text rows.
-  - The live token store file is unchanged.
-  - **Check:** inject/DB tests: the stored columns aren't the plain token; sign-in, refresh and disconnect still work; a wrong key fails clearly; the migration test round-trips an existing row.
-- [x] **D2** Schema for the core, as in the spec's Data model:
-  - `runners` gains `record_gender`, `onboarded_at`, `activities_checked_at` and `resynced_at`;
-  - `benchmarks.source` becomes `runner | generated` (migrate the old values), and gains `generated_seconds`;
-  - new tables: `fitness_profiles`, `activities`, `segments` (shared, with a start lat/lng bounding-box index), `runner_segments`, `mapped_areas`, `crawls`, `strava_jobs`, `strava_read_usage`, `app_state`;
-  - every per-Runner table cascades from `runners`.
-  - **Check:** the migration applies to a DB with foundation data; the disconnect test now asserts every per-Runner table is emptied and a shared `segments` row survives.
-- [x] **D3** Strava client reads, all through the existing client:
-  - `listActivities({ after?, page })`, `getActivity(id)`, `getSegment(id)` and `getStarredSegments(page)`;
-  - each maps to our own shapes (activity summary with polyline and bbox; efforts with the embedded summary Segment, achievements and `kom_rank`; Segment detail with `xoms`, `athlete_count`, `hazardous`, geometry and `athlete_segment_stats`), with no raw JSON kept;
-  - parse the `x-ratelimit-*` / `x-readratelimit-*` headers into every result;
-  - typed errors for 429 (with retry timing) and **revoked** (`invalid_grant` on refresh, or 401).
-  - Capture fixtures as described in Conventions.
-  - **Check:** client tests with mocked `fetch` over the fixtures, including header parsing, 429 and revoked; a `.live.test.ts` for `getSegment` + `listActivities` (≤ 3 calls) in `pnpm test:live`.
-- [x] **D4** Revocation cascade: a revoked token error during any Strava call made for a Runner runs the same deletion as Disconnect and ends their session, so the next request is a 401 and the web app shows the login page.
-  - **Check:** an inject test where the fake Strava rejects the refresh with `invalid_grant`: the Runner's rows are gone and `/api/me` is 401.
+- [ ] **M2** "View on Strava" in the lists (spec: UI → Results page):
+  - `ResultsSection` rows show a "View on Strava" link under the distance · grade · km line, styled and opening as in Decisions;
+  - this covers all three sections on the Results page and the wizard's step 3, which reuses `ResultsSection`;
+  - the row's layout and columns stay as they are at phone width (no horizontal overflow at 375 px).
+  - **Check:**
+    - component tests: each row's link has the right `href`, `target="_blank"`, `rel="noopener noreferrer"` and accessible name (`View <Segment name> on Strava` through `aria-label`, so screen readers can tell the rows apart, while the visible text stays "View on Strava");
+    - an e2e test with a seeded area finds a target's link with the Segment's URL.
 
-### Job queue (spec: Background work and the Strava budget)
+### Map
 
-- [x] **J1** Queue core:
-  - enqueue with kind, target, Runner, crawl and priority (search > new-run > mapping > freshness), with de-duplication of identical pending jobs;
-  - `drain({ deadline, now, strava })` claims with `FOR UPDATE SKIP LOCKED`, runs handlers by kind, and records success, retry (attempts, backoff via `not_before`) or failure;
-  - handlers are registered by kind.
-  - **Check:** seam-2 tests against Postgres: priority order; `not_before` respected; two concurrent drains never run the same job; the deadline stops the drain; retries give up after the attempt limit.
-- [x] **J2** Budget:
-  - `strava_read_usage` keeps app-wide 15-minute window and day counters (synced from the rate-limit headers) and per-Runner daily reads;
-  - drains stop before using the last 10 reads of a window, which stay reserved for interactive calls;
-  - a Runner at 500 reads today has their jobs deferred to the next UTC day;
-  - a 429 defers to the next window.
-  - Expose `budgetStatus(runnerId)` for the "continues tomorrow" message.
-  - **Check:** seam-2 tests for each rule with a fake clock.
-- [x] **J3** Handlers:
-  - **activity detail:** upsert summary-only `segments` rows; update `runner_segments` (via run, effort count, best time/date, top-10 hint); an effort with a KOM/QOM achievement or top-10 hint enqueues that Segment's detail at **search** priority; mark `detail_fetched_at`;
-  - **Segment detail:** fill the shared `segments` row, `record_status` (with a log line for `unparseable`, including the raw string), `athlete_count` and geometry; take the PB from `athlete_segment_stats` when faster;
-  - **starred:** upsert `runner_segments` via starred.
-  - **Check:** seam-2 tests with fixture responses for each handler, including "I just took it" and a starred-never-run Segment.
-- [x] **J4** Crawls (spec: Known Segment gathering):
-  - for a centre + radius, select the Runner's stored activities whose polyline passes through the area (bbox prefilter, then decoded polyline);
-  - order greedily by new ground (about 100 m grid cells), newest first on ties;
-  - enqueue run details progressively;
-  - stop at 95% coverage, or when the last 10 runs added < 3 new Segments;
-  - enqueue missing Segment details in the spec's order (top-10/KOM hints, then most run, then nearest the centre);
-  - track progress ("N of ~M") and status on `crawls`.
-  - A Mapped Area crawl runs at mapping priority to 100% coverage.
-  - **Check:** seam-2 tests with synthetic polylines for selection, greedy ordering, both stop rules, detail ordering and progress counts.
-- [x] **J5** Tick and housekeeping:
-  - `POST /internal/tick` runs a time-capped drain (about 20 s) and, once a day (tracked in `app_state`), housekeeping: enqueue freshness re-fetches for Segment details older than 30 days, oldest first, recently searched areas first; prune finished jobs and old usage rows;
-  - the route verifies a Google OIDC token (the audience is the service URL, the issuer is Google, and the email is the configured Scheduler service account, from new env vars in `.env.example`);
-  - outside production, the dev server also calls the same function on a 5-minute `setInterval`, and test mode can call it without a token.
-  - **Check:** inject tests: missing/invalid/wrong-audience tokens are rejected (sign test tokens with a local key via a JWKS stub); housekeeping runs once per day; freshness picks the right Segments.
+- [ ] **M3** What to draw, as a pure module (`apps/web/src/results/segment-map-features.ts`):
+  - `segmentMapFeatures(results)` returns the Search Area circle and one feature per row in Your targets and Nearest misses (none for Suspicious records);
+  - a feature carries:
+    - `segmentId`;
+    - `list` (`'targets' | 'nearestMisses'`);
+    - `shape`: `{ kind: 'route', points }` when the polyline decodes to ≥ 2 points (using the shared `decodePolyline`), otherwise `{ kind: 'start', point }`;
+    - `bounds` (the route's box, or the start point);
+    - the row itself, for the popup;
+  - a Segment in both lists can't happen, but de-duplicate by `segmentId` anyway, keeping the first;
+  - the colours, line weight, radii and tile URL/attribution are named constants exported from this module.
+  - **Check:** unit tests for:
+    - route vs start (including an empty or 1-point polyline and an undecodable string falling back to the start point);
+    - Suspicious rows excluded;
+    - the circle matching the Search Area;
+    - bounds for a route and for a start point;
+    - stable ordering (targets first, then Nearest misses, in list order).
 
-### New runs and the Fitness Profile (spec: Fitness Profile generation, New activities)
+- [ ] **M4** The map on the Results page:
+  - add `leaflet`, `react-leaflet` and `@types/leaflet` to `apps/web`, then:
+    - `SegmentMap.tsx`, lazily loaded, with a same-height placeholder;
+    - Leaflet's CSS imported by the map chunk;
+    - OSM tiles and attribution, with gestures, framing (fit on first render and on Search Area change, never on poll), colours, legend and placement as in Decisions;
+    - popups as in Decisions, with the "View on Strava" link;
+    - each Segment's `className` as in Conventions;
+  - check that Tailwind's preflight doesn't distort tiles or the SVG overlay (Leaflet 1.9's CSS sets `max-width: none` on them; add an override only if the click-through shows a problem);
+  - add the shared e2e tile fixture (Conventions), and switch every existing spec to it;
+  - extend the e2e seeding so a spec can seed a route Segment and a start-only Segment.
+  - **Check:**
+    - component tests: the placeholder shows, then the map region (`role="region"`, `aria-label="Segment map"`) and the legend; no map with no rows and nothing pending; the circle-only map while pending with no rows;
+    - e2e with a seeded area (one route target, one start-only target, one Nearest miss, one Suspicious record):
+      - a `segment-map-route` and a `segment-map-start` element render for the targets, and one for the Nearest miss;
+      - nothing renders for the Suspicious record;
+      - clicking the route opens a popup with the Segment's name and a "View on Strava" link to its URL;
+      - the start-only popup says "Start point only";
+      - no request leaves for a real tile server (assert through the fixture).
 
-- [x] **N1** Activity sync:
-  - `syncActivities(runner, mode)`, where `full` pages through the whole activity list, upserts runs, deletes the Runner's stored runs that no longer exist and recomputes the affected `runner_segments` bests, and `new` fetches `after=<latest stored start>`;
-  - both are interactive calls (they use the reserve);
-  - on first sign-in, run `full` plus the starred Segments fetch.
-  - **Check:** seam-3 tests with a fake Strava: first sign-in stores the runs; `new` fetches only after the latest; `full` removes a deleted run and its effort contribution.
-- [x] **N2** Profile persistence and endpoints:
-  - after a sync, generate (C3) and store the applied generation in `fitness_profiles`, setting unpinned Benchmarks to generated values and keeping `generated_seconds` on pinned ones;
-  - `GET /api/fitness-profile` returns each Benchmark with value, source, generated value and soft flag, plus the "Estimated from …" source runs and any pending suggestion;
-  - `PUT` pins edited rows and unpins "use generated" ones;
-  - `POST /api/fitness-profile/update-all`, `/reset` and `/regenerate` (runs a `new` sync, ignoring the throttle, and applies directly);
-  - `PUT /api/preferences` sets KOM/QOM.
-  - **Check:** seam-3 tests for each endpoint, including pins surviving regeneration, update-all overwriting pins, and reset.
-- [x] **N3** The visit check and suggestions:
-  - on the first authenticated request when `activities_checked_at` is older than 3 hours, run a `new` sync;
-  - queue each new run's detail at new-run priority; queue Segment details for new Segments that start inside a saved Search Area or Mapped Area at mapping priority;
-  - regenerate the profile, and if the unpinned values differ from the applied ones and from the last dismissed values, store a pending suggestion;
-  - `POST /api/fitness-profile/suggestion` with `{ action: 'apply' | 'dismiss' }`;
-  - `POST /api/activities/resync` runs a `full` sync, sets `resynced_at`, then does the same;
-  - `GET /api/me` gains `onboarded` and `suggestion` (a summary for the banner).
-  - **Check:** seam-3 tests: throttle respected; new-run jobs queued; suggestion created, applied, dismissed, not re-shown for the same values, re-shown for new ones; pinned untouched; resync reconciles.
-
-### Search and results API (spec: Ranking, Known Segment gathering, API)
-
-- [x] **X1** Search:
-  - Search Area radii become 1, 2, 5, 10 km (default 5);
-  - `POST /api/search` replaces `PUT /api/search-area`: it saves the area, sets `onboarded_at` if unset, fetches starred Segments, starts a crawl (J4), drains a first burst (about 20 runs + 60 Segment details, 8 in parallel, within the budget), and returns the results payload;
-  - `GET /api/search-area` is unchanged.
-  - **Check:** seam-3 tests with a fake Strava: the first call returns stored Segments immediately plus progress; the burst respects the budget; an invalid radius is rejected.
-- [x] **X2** Results:
-  - `GET /api/results` loads the area's Known Segments with SQL (bbox index + exact distance, zero Strava calls), the Benchmarks and gender, and calls `rank`;
-  - it returns the three lists (rows carry name, distance, avg grade, km from centre, athletes, record, Predicted Time + confidence reason, PB, Held, Implausible, record age), counts, crawl progress and `budgetStatus`;
-  - while work is pending, it drains for up to about 2 s first.
-  - `GET /api/debug/segments` (outside production only) returns the same pipeline's per-Segment exclusion reasons.
-  - **Check:** seam-3 tests: lists match `rank` for a seeded area; a poll advances progress; "continues tomorrow" appears at the cap; the debug output agrees with the results for every Segment; one Runner never sees another's PBs.
-- [x] **X3** Mapped Areas: `GET/POST/DELETE /api/mapped-areas` (label, centre, radius 10/25/50, default 25), with a mapping-priority crawl and progress in the list. Delete stops its pending jobs.
-  - **Check:** seam-3 tests for create, list with progress, delete cancelling jobs, and scoping to the signed-in Runner.
-
-### UI (spec: UI; decided prototypes on branches `prototype/results-list` and `prototype/onboarding`, variant A)
-
-- [x] **U1** The Fitness Profile page, rebuilt on N2:
-  - the "Estimated from …" sentence;
-  - the 13-row table with editable times, pinned state (orange, "📌 yours · generated X · use generated") and soft flag;
-  - **Update all from this** on the row just edited, with its confirmation;
-  - **Reset all to generated** when anything is pinned;
-  - **Regenerate from Strava**;
-  - **Resync my runs**, with its explainer and last-resynced time;
-  - the empty-profile message.
-  - **Check:** component tests plus e2e: edit → pinned → reload persists; update-all; reset; use generated.
-- [x] **U2** The suggestion banner:
-  - a slim banner under the nav on every signed-in page while `/api/me` reports a suggestion;
-  - **Apply** in place, **Review** (opens the Fitness Profile with suggested values beside current ones), **×** dismiss.
-  - **Check:** component tests plus e2e for apply and dismiss (seed a suggestion through a test-only route or DB helper).
-- [x] **U3** The Search Area page:
-  - radii 1/2/5/10 (10 marked "slower, uses more of the daily budget");
-  - saving calls `POST /api/search` and goes to Results;
-  - the IP fallback is hidden when the server reports it unavailable, as it always is in production (config);
-  - a "Map a whole area in the background" section: place + radius 10/25/50 (default 25), and a list of Mapped Areas with progress bars and remove buttons.
-  - **Check:** component tests plus e2e for search → results, and start/remove a Mapped Area.
-- [x] **U4** The Results page, replacing the prototype and the placeholder:
-  - a toolbar with a radius dropdown (re-runs the search) and the place linking to the Search Area page;
-  - the summary line "N of M Known Segments are Achievable";
-  - Your targets / Nearest misses / Suspicious records (muted) with counts;
-  - rows as in the spec (👑, "⚠ Suspicious", `~` with the reason on hover, "—" for no PB, record age when > 30 days);
-  - a "refining: N of ~M Segments checked" line polling every 5 s while pending, stopping when done;
-  - "continues tomorrow" at the cap;
-  - an empty state suggesting a bigger radius;
-  - with < 2 Benchmarks, a prompt linking to the Fitness Profile.
-  - Delete the results prototype files and route.
-  - **Check:** component tests over fixture payloads (including a slow Runner with Nearest misses) plus e2e with a seeded area.
-- [x] **U5** The first-run wizard and routing:
-  - a three-step wizard with a step bar;
-  - step 1: reading runs, the sentence, the table, and a KOM/QOM question only when `sex` is unset; continue is disabled until ≥ 2 Benchmarks exist;
-  - step 2: the Search Area form + **Find my targets**;
-  - step 3: crawl progress "N of ~M runs checked · K Segments found. You can leave; this keeps going.", targets appearing live, and **See all results**;
-  - after login, Runners who aren't onboarded go to the wizard (resuming there if they left during step 1), and others land on Results.
-  - Delete the onboarding prototype files and route, and the prototype switcher if it's then unused.
-  - **Check:** component tests plus e2e: a new Runner walks all three steps; leaving at step 1 resumes; the KOM/QOM question appears only without `sex`; an onboarded Runner lands on Results.
-
-### Production build (spec: Hosting and deployment). Code only; no cloud resources
-
-- [x] **H1** One production image:
-  - the API serves the built web app with `@fastify/static` (SPA fallback for client routes, `/api` and `/internal` excluded);
-  - production config requires the spec's secrets, and disables test, live and debug routes and the IP fallback;
-  - a multi-stage `Dockerfile` (the build stage runs `pnpm build`; the runtime is Node 22 slim) that listens on `$PORT`.
-  - **Check:** `docker build` succeeds; running the image against the local Postgres with production env serves the web app at `/`, `/api/health` is ok, and `/api/test/login` is 404.
-- [x] **H2** Deploy workflow and docs:
-  - a GitHub Actions workflow on push to `main`: install, typecheck/lint/test, `drizzle-kit migrate` against `DATABASE_URL`, build and push the image to Artifact Registry in `northamerica-northeast1`, and `gcloud run deploy` (max 1 instance, min 0, concurrency 80, secrets from Secret Manager), authenticating with Workload Identity Federation;
-  - `docs/deploy.md` records the one-time human setup (below) as an exact checklist, including the Scheduler job and the $1 budget alert.
-  - **Check:** the workflow YAML parses (use `actionlint` if available, otherwise a YAML parse) and references only secrets and variables listed in `docs/deploy.md`.
+- [ ] **M5** "Show on map" from the list:
+  - a "Show on map" button in each Your targets and Nearest misses row on the Results page (not Suspicious records, not the wizard);
+  - it scrolls the map into view (`scrollIntoView({ block: 'nearest', behavior: 'smooth' })`), fits the map to that Segment, and opens its popup;
+  - the selection is lifted state in `ResultsView`, handed to the map; closing the popup clears it;
+  - a poll that drops the selected Segment closes its popup and clears the selection;
+  - `ResultsSection` takes an optional `onShowOnMap(segmentId)`, and renders the button only when it's given.
+  - **Check:**
+    - component tests: the button appears only in the two sections on the Results page and calls back with the row's id; the wizard has no button;
+    - an e2e test: click "Show on map" on the start-only target, and its popup opens with "Start point only" and the right link;
+    - repeat at a 375 px viewport.
 
 ### Wrap-up
 
-- [x] **W1** Full pass:
-  - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`;
-  - add a live smoke test to `pnpm test:e2e:live`: a real 1 km search on the test account returns ranked rows, capped at **30 Strava reads** (assert it through the usage counters);
-  - a final MCP click-through of every page as the real Runner (`pnpm dev:live`);
-  - update the README (new env vars, the tick in dev, the debug endpoint).
-  - **Check:** everything passes, and the live smoke test stays within its read cap.
-
-## Human setup (not loop tasks)
-
-The loop never does these, because they need your accounts. Do them after H2, following `docs/deploy.md`:
-
-- **Strava:** the self-service upgrade to 10 athletes; add the `*.run.app` domain as a callback domain once it exists.
-- **GCP:**
-  - create the project and turn on the budget alert at $1;
-  - set up Artifact Registry and Cloud Run (Montréal);
-  - add the Secret Manager secrets (`DATABASE_URL`, `SESSION_SECRET`, `STRAVA_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`);
-  - create the Scheduler service account and the 5-minute Cloud Scheduler job with an OIDC token;
-  - connect GitHub through Workload Identity Federation.
-- **Supabase:** a Free project in `ca-central-1`, and the IPv4 session-pooler URL for `DATABASE_URL`.
-- **GitHub:** the WIF variables and the `DATABASE_URL` secret.
+- [ ] **M6** Full pass:
+  - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`. The build output must show Leaflet in a separate chunk from the main entry; record both chunk sizes in progress.txt;
+  - a final MCP click-through of the Results page as the real Runner (`pnpm dev:live`), at desktop and 375 px, against the Search Area already saved:
+    - don't start a new search or change the radius;
+    - opening Results drains queued work, so use at most **10 Strava reads**, checked through the usage counters before and after;
+    - real tiles load, routes and start points sit on the right streets, popups and "View on Strava" links work, "Show on map" works, the page scrolls past the map on the phone viewport, and there are no console errors;
+  - update the README: a line on the map and its OSM tiles, and the e2e tile fixture.
+  - **Check:** everything passes; the click-through finds nothing broken; reads stay within 10.
