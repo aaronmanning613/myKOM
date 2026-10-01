@@ -9,7 +9,9 @@ Production is the only environment. It runs as one Cloud Run service in `northam
 3. build the image and push it to Artifact Registry;
 4. `gcloud run deploy`.
 
-Everything below is one-time setup that needs your accounts, so do it by hand, top to bottom. It's
+Everything below is one-time setup that needs your accounts. [`scripts/setup-deploy.sh`](../scripts/setup-deploy.sh)
+walks you through it stage by stage (opening each page, running the commands, and setting the GitHub
+secret and variables); it's safe to re-run. Or do it by hand, top to bottom. It's
 free as long as usage stays in the free tiers, and the budget alert emails you at $1.
 
 The commands use these shell variables. Set them first and keep the terminal open:
