@@ -54,8 +54,13 @@ regenerates from Strava.
 
 - [ ] Create the **$1 budget alert**. It emails the billing account's admins when actual spend
       reaches $1. It's only an alert: nothing gets shut down. The amount must be in the billing
+<<<<<<< HEAD
       account's currency (`gcloud billing accounts describe <BILLING_ACCOUNT_ID>
   --format='value(currencyCode)'`); this one bills in CAD.
+=======
+      account's currency, which `gcloud billing accounts describe` shows as `currencyCode`. This one
+      bills in CAD.
+>>>>>>> ed1e711 (Deploy with TRUST_PROXY=true; deploy.md: budget in the billing currency, enable the IAM API; drop the setup wizard)
 
   ```sh
   gcloud billing budgets create --billing-account=<BILLING_ACCOUNT_ID> \
