@@ -43,3 +43,20 @@
   console errors beyond the pre-sign-in 401. No Strava reads.
 - Notes: /api/test/segments gives Segments random ids and replies 204, so e2e reads the ids
   back from GET /api/results. M4/M5 can reuse `StravaLink` in the popup.
+
+## M3 - What to draw, as a pure module (2026-10-01)
+- Done: apps/web/src/results/segment-map-features.ts: `segmentMapFeatures(results)` returns
+  `{ searchArea: { centre, radiusMetres, bounds }, segments }`, one feature per Your targets then
+  Nearest misses row (deduped by segmentId, first kept; Suspicious records ignored), each with
+  `list`, `shape` (route when the polyline decodes to >= 2 points, else start), `bounds`
+  (shared BoundingBox) and the row. Exported constants: list colours, Search Area colour/dash,
+  ROUTE_WEIGHT 4, ROUTE_START_RADIUS 4, START_RADIUS 7, START_OUTLINE_COLOUR, START_ZOOM 16,
+  TILE_URL / TILE_MAX_ZOOM / TILE_ATTRIBUTION.
+- Verified: pnpm typecheck, lint, test (shared 238, web 119, api 421), test:e2e (33) all pass.
+  New segment-map-features.test.ts: route vs start (null, empty, 1-point, undecodable, and
+  off-the-Earth polylines fall back), Suspicious excluded, circle centre/radius/bounds, route and
+  start bounds, ordering, dedupe.
+- Notes: decodePolyline never throws; a garbled string decodes to 0 points or to coordinates
+  out of range, so routes also require every point within lat ±90 / lng ±180. The circle's
+  bounds use a spherical approximation (6,371 km), fine for fitBounds in M4. Search Area grey is
+  #6b7280 (gray-500); the route-start dot radius 4 is my pick for "small".

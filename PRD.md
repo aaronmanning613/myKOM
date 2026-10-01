@@ -105,7 +105,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Map
 
-- [ ] **M3** What to draw, as a pure module (`apps/web/src/results/segment-map-features.ts`):
+- [x] **M3** What to draw, as a pure module (`apps/web/src/results/segment-map-features.ts`):
   - `segmentMapFeatures(results)` returns the Search Area circle and one feature per row in Your targets and Nearest misses (none for Suspicious records);
   - a feature carries:
     - `segmentId`;
