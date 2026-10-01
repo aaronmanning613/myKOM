@@ -141,7 +141,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
       - the start-only popup says "Start point only";
       - no request leaves for a real tile server (assert through the fixture).
 
-- [ ] **M5** "Show on map" from the list:
+- [x] **M5** "Show on map" from the list:
   - a "Show on map" button in each Your targets and Nearest misses row on the Results page (not Suspicious records, not the wizard);
   - it scrolls the map into view (`scrollIntoView({ block: 'nearest', behavior: 'smooth' })`), fits the map to that Segment, and opens its popup;
   - the selection is lifted state in `ResultsView`, handed to the map; closing the popup clears it;

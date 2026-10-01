@@ -79,7 +79,15 @@ export function StravaLink({ segmentId, name }: { segmentId: number; name: strin
   );
 }
 
-function Row({ row, now }: { row: ResultRow; now: Date }) {
+function Row({
+  row,
+  now,
+  onShowOnMap,
+}: {
+  row: ResultRow;
+  now: Date;
+  onShowOnMap?: (segmentId: number) => void;
+}) {
   const age = recordAge(row.recordCheckedAt, now);
   return (
     <tr className="border-b border-gray-100 align-top">
@@ -110,8 +118,18 @@ function Row({ row, now }: { row: ResultRow; now: Date }) {
           {row.kmFromCentre.toFixed(1)} km away
         </div>
         {age && <div className="text-xs text-gray-500">{age}</div>}
-        <div className="text-xs">
+        <div className="flex flex-wrap gap-x-3 text-xs">
           <StravaLink segmentId={row.segmentId} name={row.name} />
+          {onShowOnMap && (
+            <button
+              type="button"
+              aria-label={`Show ${row.name} on map`}
+              onClick={() => onShowOnMap(row.segmentId)}
+              className="text-left font-medium text-gray-700 underline"
+            >
+              Show on map
+            </button>
+          )}
         </div>
       </td>
       <td className="py-2 pr-2 text-right tabular-nums">
@@ -135,6 +153,7 @@ export function ResultsSection({
   now,
   empty,
   muted = false,
+  onShowOnMap,
 }: {
   title: string;
   subtitle?: string;
@@ -143,6 +162,8 @@ export function ResultsSection({
   /** Shown instead of the table when there are no rows. */
   empty?: ReactNode;
   muted?: boolean;
+  /** Gives each row a "Show on map" button (only where there's a map). */
+  onShowOnMap?: (segmentId: number) => void;
 }) {
   const id = `results-${title.toLowerCase().replaceAll(' ', '-')}`;
   return (
@@ -168,7 +189,7 @@ export function ResultsSection({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <Row key={row.segmentId} row={row} now={now} />
+                <Row key={row.segmentId} row={row} now={now} onShowOnMap={onShowOnMap} />
               ))}
             </tbody>
           </table>

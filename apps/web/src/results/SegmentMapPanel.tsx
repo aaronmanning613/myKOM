@@ -1,8 +1,13 @@
 // The Segment map's place on the Results page: a same-height placeholder while the Leaflet chunk
 // loads, then the map, with its legend underneath. The lists never wait for it.
 import type { Results } from '@mykom/shared';
-import { lazy, Suspense } from 'react';
-import { MAP_HEIGHT_CLASSES, NEAREST_MISS_COLOUR, TARGET_COLOUR } from './segment-map-features';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import {
+  MAP_HEIGHT_CLASSES,
+  NEAREST_MISS_COLOUR,
+  TARGET_COLOUR,
+  type SegmentMapSelection,
+} from './segment-map-features';
 
 const SegmentMap = lazy(() => import('./SegmentMap'));
 
@@ -10,9 +15,23 @@ const SegmentMap = lazy(() => import('./SegmentMap'));
 export const showsSegmentMap = (results: Results) =>
   results.pending || results.targets.length + results.nearestMisses.length > 0;
 
-export function SegmentMapPanel({ results }: { results: Results }) {
+export function SegmentMapPanel({
+  results,
+  selection = null,
+  onPopupClose,
+}: {
+  results: Results;
+  /** The Segment "Show on map" picked: the map scrolls into view, fits it and opens its popup. */
+  selection?: SegmentMapSelection | null;
+  onPopupClose?: (segmentId: number) => void;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selection) panel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selection]);
+
   return (
-    <div className="mt-4">
+    <div ref={panel} className="mt-4">
       <Suspense
         fallback={
           <div
@@ -24,7 +43,7 @@ export function SegmentMapPanel({ results }: { results: Results }) {
       >
         {/* `isolate` keeps Leaflet's z-indexes below the header's menus. */}
         <section aria-label="Segment map" className="isolate">
-          <SegmentMap results={results} />
+          <SegmentMap results={results} selection={selection} onPopupClose={onPopupClose} />
         </section>
       </Suspense>
       <p className="mt-1 text-xs text-gray-600">

@@ -168,5 +168,42 @@ for (const viewport of viewports) {
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
     });
+
+    test('"Show on map" brings a Segment into view and opens its popup', async ({ page }) => {
+      const ids = await seedMappedArea(page);
+      await page.goto('/results');
+
+      const map = page.getByRole('region', { name: 'Segment map' });
+      await expect(map.locator(`.segment-map-${ids.startOnly}`)).toHaveCount(1);
+      const targets = page.getByRole('region', { name: /^Your targets/ });
+      const nearestMisses = page.getByRole('region', { name: /^Nearest misses/ });
+      await expect(targets.getByRole('button', { name: /on map/ })).toHaveCount(2);
+      await expect(nearestMisses.getByRole('button', { name: /on map/ })).toHaveCount(1);
+      await expect(
+        page.getByRole('region', { name: /^Suspicious records/ }).getByRole('button'),
+      ).toHaveCount(0);
+
+      // Scroll the map away first, so the button has to bring it back.
+      const button = targets.getByRole('button', { name: 'Show Rideau Hill on map' });
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await button.click();
+
+      const popup = map.locator('.leaflet-popup', { hasText: 'Rideau Hill' });
+      await expect(popup).toBeVisible();
+      await expect(popup).toBeInViewport();
+      await expect(popup).toContainText('Your target');
+      await expect(popup).toContainText('Start point only');
+      await expect(popup.getByRole('link', { name: 'View Rideau Hill on Strava' })).toHaveAttribute(
+        'href',
+        `https://www.strava.com/segments/${ids.startOnly}`,
+      );
+      // Zoomed in on its start.
+      await expect(map.locator('.leaflet-tile[src*="/16/"]').first()).toBeAttached();
+
+      // Another Segment's button swaps the popup over.
+      await targets.getByRole('button', { name: 'Show Canal Dash on map' }).click();
+      await expect(map.locator('.leaflet-popup', { hasText: 'Canal Dash' })).toBeVisible();
+      await expect(popup).toHaveCount(0);
+    });
   });
 }

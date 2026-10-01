@@ -98,3 +98,32 @@
   has a zero-height box, which Playwright calls not visible. jsdom renders the map without
   errors (no Leaflet mocking needed). React.lazy caches the chunk per test file, so only the
   first render in a file sees the placeholder.
+
+## M5 - "Show on map" from the list (2026-10-01)
+- Done: `ResultsSection` takes an optional `onShowOnMap(segmentId)`. When it's given, each row
+  gets a grey, underlined "Show on map" button next to "View on Strava" (aria-label "Show <name>
+  on map"). The two sit in a wrapping flex row, so they stack neatly at 375 px. ResultsView passes
+  it to Your targets and Nearest misses only; the wizard and Suspicious records get none. The
+  selection is lifted state in ResultsView: `SegmentMapSelection { segmentId, request }`, typed in
+  segment-map-features.ts. `request` counts the clicks, so clicking the same Segment again refits.
+  It's cleared when that Segment's popup closes (FeatureGroup `popupclose`, compared by id so
+  switching Segments doesn't clear the new one), or when a poll drops the Segment. The popup
+  closes on its own then, because its layer is removed. SegmentMapPanel scrolls itself into view
+  (`block: 'nearest', behavior: 'smooth'`). In SegmentMap, `ShowSelection` (rendered last, so
+  the layers are already on the map) fits the route's bounds (24 px padding) or does a
+  setView(start, 16) without animation, then calls openPopup on the Segment's FeatureGroup at
+  its start point. Popup auto-pan then does the rest. FeatureGroups are kept in a ref'd
+  Map<segmentId, FeatureGroup>.
+- Verified: pnpm typecheck, lint, test (shared 238, web 126, api 421) and test:e2e (37) all pass.
+  New tests: in ResultsPage.test, buttons in the two sections only, scrollIntoView called on the
+  map's panel, ResultsSection calling back with the id and having no button without the
+  callback; in WizardPage.test, no button in step 3. In segment-map.spec (desktop and 375 px),
+  the page is scrolled down first, then "Show on map" on the start-only target opens an
+  in-viewport popup with "Start point only" and the right link at zoom 16, and the next button
+  swaps the popup. MCP click-through on `E2E=1 pnpm dev` with real tiles at 1280 and 375 px:
+  scrolls back to the map, zooms in, the popup opens, close then re-click reopens it, there's no
+  overflow, and the only console error is the pre-sign-in 401.
+- Notes: the popup opens at the Segment's start, so on a route its auto-pan can nudge the far
+  end of the line just out of frame. At 260 px tall on phones, the popup's top can sit under
+  the +/− control. That's standard Leaflet, so I left it alone. "Show on map" is grey, not
+  orange, so it isn't confused with the Strava link.

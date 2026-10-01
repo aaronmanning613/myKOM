@@ -195,6 +195,8 @@ describe('the first-run wizard', () => {
     expect(
       screen.getByRole('link', { name: 'View Colborne Lodge Hill on Strava' }),
     ).toHaveAttribute('href', 'https://www.strava.com/segments/2');
+    // The wizard has no map, so no "Show on map".
+    expect(screen.queryByRole('button', { name: /on map/ })).not.toBeInTheDocument();
 
     // Done: no more polling.
     await act(() => vi.advanceTimersByTimeAsync(RESULTS_POLL_MS * 2));

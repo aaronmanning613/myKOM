@@ -2,8 +2,8 @@ import type { ResultRow, Results, SearchAreaUpdate } from '@mykom/shared';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { recordAge } from '../results/ResultsSection';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { recordAge, ResultsSection } from '../results/ResultsSection';
 import { routes } from '../routes';
 import { json, signedIn, stubApi } from '../test/api';
 import { RESULTS_POLL_MS } from './ResultsPage';
@@ -453,6 +453,58 @@ describe('the Segment map', () => {
     expect(await screen.findByRole('region', { name: 'Segment map' })).toBeInTheDocument();
     expect(screen.getByText(LEGEND)).toBeVisible();
     expect(screen.getByText('None yet: your Segments are still being checked.')).toBeVisible();
+  });
+
+  it('gives Your targets and Nearest misses rows a "Show on map" button, not Suspicious records', async () => {
+    // jsdom has no scrollIntoView.
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    onTestFinished(() => {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    });
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () => json({ ...fast, nearestMisses: slow.nearestMisses }),
+    });
+    renderPage();
+
+    await screen.findByRole('region', { name: 'Segment map' });
+    for (const name of ['Canal Dash', 'Bridge Sprint', 'Parliament Hill', 'Closest Miss']) {
+      const button = within(rowFor(name)).getByRole('button', { name: `Show ${name} on map` });
+      expect(button).toHaveTextContent(/^Show on map$/);
+    }
+    expect(
+      within(section('Suspicious records')).queryByRole('button', { name: /on map/ }),
+    ).not.toBeInTheDocument();
+
+    // It brings the map into view without jumping past it.
+    await userEvent.click(screen.getByRole('button', { name: 'Show Closest Miss on map' }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(scrollIntoView.mock.contexts[0]).toContainElement(map());
+  });
+});
+
+describe('ResultsSection', () => {
+  it('calls onShowOnMap with the row’s Segment id', async () => {
+    const onShowOnMap = vi.fn();
+    render(
+      <ResultsSection
+        title="Your targets"
+        rows={fast.targets}
+        now={new Date()}
+        onShowOnMap={onShowOnMap}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show Parliament Hill on map' }));
+    expect(onShowOnMap).toHaveBeenCalledWith(3);
+  });
+
+  it('has no "Show on map" button without onShowOnMap', () => {
+    render(<ResultsSection title="Your targets" rows={fast.targets} now={new Date()} />);
+
+    expect(screen.getByRole('row', { name: /Canal Dash/ })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /on map/ })).not.toBeInTheDocument();
   });
 });
 

@@ -50,6 +50,12 @@ export type SegmentMapFeature = {
   row: ResultRow;
 };
 
+/**
+ * The Segment a "Show on map" button picked. `request` counts the clicks, so clicking the same
+ * Segment again refits the map and reopens its popup.
+ */
+export type SegmentMapSelection = { segmentId: number; request: number };
+
 export type SearchAreaCircle = {
   centre: LatLng;
   radiusMetres: number;

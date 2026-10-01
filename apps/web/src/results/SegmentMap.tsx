@@ -3,7 +3,7 @@
 import 'leaflet/dist/leaflet.css';
 import { formatTime, type Results } from '@mykom/shared';
 import L from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Circle,
   CircleMarker,
@@ -25,16 +25,23 @@ import {
   segmentMapFeatures,
   START_OUTLINE_COLOUR,
   START_RADIUS,
+  START_ZOOM,
   TILE_ATTRIBUTION,
   TILE_MAX_ZOOM,
   TILE_URL,
   type SearchAreaCircle,
   type SegmentMapFeature,
+  type SegmentMapSelection,
 } from './segment-map-features';
 import type { BoundingBox, LatLng } from '@mykom/shared';
 
 /** A little room around the Search Area circle, so its edge isn't on the map's border. */
 const FIT_OPTIONS: L.FitBoundsOptions = { padding: [12, 12] };
+/**
+ * Framing one Segment: no animation, so its popup's own pan (to fit the popup in) starts from
+ * where the map ends up.
+ */
+const SHOW_SEGMENT_OPTIONS: L.FitBoundsOptions = { padding: [24, 24], animate: false };
 
 const toLeaflet = ({ lat, lng }: LatLng): L.LatLngTuple => [lat, lng];
 const toLeafletBounds = (box: BoundingBox): L.LatLngBoundsExpression => [
@@ -53,6 +60,41 @@ function FrameSearchArea({ searchArea }: { searchArea: SearchAreaCircle }) {
     map.fitBounds(toLeafletBounds(searchArea.bounds), FIT_OPTIONS);
     // Only the Search Area itself refits: a poll hands over a new but equal object.
   }, [map, centre.lat, centre.lng, radiusMetres]);
+  return null;
+}
+
+/** The start of a Segment: its route's first point, or its stored start. */
+const startOf = ({ shape }: SegmentMapFeature) =>
+  shape.kind === 'route' ? shape.points[0]! : shape.point;
+
+/**
+ * "Show on map": fits the map to the selected Segment (its route, or zoom 16 on its start) and
+ * opens its popup. Runs per click, never on a poll.
+ */
+function ShowSelection({
+  selection,
+  features,
+  layers,
+}: {
+  selection: SegmentMapSelection | null;
+  features: SegmentMapFeature[];
+  layers: Map<number, L.FeatureGroup>;
+}) {
+  const map = useMap();
+  const latest = useRef(features);
+  latest.current = features;
+  useEffect(() => {
+    if (!selection) return;
+    const feature = latest.current.find((f) => f.segmentId === selection.segmentId);
+    const layer = layers.get(selection.segmentId);
+    if (!feature || !layer) return;
+    if (feature.shape.kind === 'route') {
+      map.fitBounds(toLeafletBounds(feature.bounds), SHOW_SEGMENT_OPTIONS);
+    } else {
+      map.setView(toLeaflet(feature.shape.point), START_ZOOM, { animate: false });
+    }
+    layer.openPopup(toLeaflet(startOf(feature)));
+  }, [map, layers, selection]);
   return null;
 }
 
@@ -85,12 +127,27 @@ function SegmentPopup({ feature }: { feature: SegmentMapFeature }) {
 }
 
 /** One Segment: a route with a dot at its start, or a bigger dot on its start alone. */
-function SegmentLayer({ feature }: { feature: SegmentMapFeature }) {
+function SegmentLayer({
+  feature,
+  layers,
+  onPopupClose,
+}: {
+  feature: SegmentMapFeature;
+  layers: Map<number, L.FeatureGroup>;
+  onPopupClose: (segmentId: number) => void;
+}) {
   const colour = LIST_COLOURS[feature.list];
   const id = `segment-map-${feature.segmentId}`;
-  const { shape } = feature;
+  const { segmentId, shape } = feature;
   return (
-    <FeatureGroup>
+    <FeatureGroup
+      ref={(layer) => {
+        if (layer) layers.set(segmentId, layer);
+        else layers.delete(segmentId);
+      }}
+      // Also fires when a poll drops the Segment: removing its layer closes its popup.
+      eventHandlers={{ popupclose: () => onPopupClose(segmentId) }}
+    >
       <Popup>
         <SegmentPopup feature={feature} />
       </Popup>
@@ -135,10 +192,16 @@ function SegmentLayer({ feature }: { feature: SegmentMapFeature }) {
 
 export default function SegmentMap({
   results,
+  selection = null,
+  onPopupClose = () => {},
 }: {
   results: Pick<Results, 'searchArea' | 'targets' | 'nearestMisses'>;
+  selection?: SegmentMapSelection | null;
+  /** Called with the Segment whose popup just closed. */
+  onPopupClose?: (segmentId: number) => void;
 }) {
   const { searchArea, segments } = useMemo(() => segmentMapFeatures(results), [results]);
+  const layers = useRef(new Map<number, L.FeatureGroup>()).current;
   return (
     <MapContainer
       bounds={toLeafletBounds(searchArea.bounds)}
@@ -163,8 +226,15 @@ export default function SegmentMap({
         }}
       />
       {segments.map((feature) => (
-        <SegmentLayer key={feature.segmentId} feature={feature} />
+        <SegmentLayer
+          key={feature.segmentId}
+          feature={feature}
+          layers={layers}
+          onPopupClose={onPopupClose}
+        />
       ))}
+      {/* Last, so the Segments' layers are on the map before it opens a popup. */}
+      <ShowSelection selection={selection} features={segments} layers={layers} />
     </MapContainer>
   );
 }
