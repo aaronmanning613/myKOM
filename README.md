@@ -82,6 +82,10 @@ Strava reads that don't need to happen during a request (run details, Segment de
 
 Outside production, `GET /api/debug/segments` (signed in) lists every Known Segment in the Search Area with the same pipeline as `GET /api/results`: its distance from the centre, the list it landed in, or why it's in none (the exclusion reason, plus the record status when there's no Target Record). Open it in the browser while signed in, e.g. http://localhost:5173/api/debug/segments. It makes no Strava calls.
 
+### The Segment map
+
+The Results page draws Your targets and Nearest misses on a Leaflet map (a lazily loaded chunk), using only stored geometry: a Segment's full route when its polyline is stored, otherwise its start point. It never fetches geometry from Strava. Tiles come from OpenStreetMap's standard tile server (`tile.openstreetmap.org`, no API key), attributed to OpenStreetMap contributors, which myKOM's handful of Runners keeps well within the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+
 ### Deploying
 
 Pushes to `main` deploy to Cloud Run through `.github/workflows/deploy.yml`. The one-time setup (GCP, Supabase, Strava and GitHub) is in [docs/deploy.md](docs/deploy.md). The production image (`Dockerfile`) serves the built web app from the API.
@@ -111,6 +115,8 @@ The lookup uses the address the request came from. Locally that's a loopback add
 `pnpm test:e2e` runs the Playwright tests in `e2e/` against your installed Google Chrome (no browser download). Postgres must be running (`docker compose up -d --wait`); Playwright migrates the database and starts its own API (port 3101) and web app (port 5174), so it doesn't clash with `pnpm dev`.
 
 The e2e servers run in **test mode** (`NODE_ENV=test` or `E2E=1`, ignored when `NODE_ENV=production`): the API adds `POST /api/test/login`, which creates a throwaway Runner and signs the browser in, and swaps Strava for a local stand-in, so the tests never use real Strava credentials. These throwaway Runners stay in your development database.
+
+The tests never fetch real map tiles. Every spec imports `test` and `expect` from `e2e/tests/fixtures.ts` (ESLint bans importing them straight from `@playwright/test`), whose automatic `tiles` fixture answers every `https://tile.openstreetmap.org/**` request with a bundled blank 256×256 PNG and records the requests, so a spec can assert none left for the real server.
 
 To stop Postgres, run `docker compose down` (add `-v` to also delete the data).
 

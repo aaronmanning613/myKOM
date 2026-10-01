@@ -127,3 +127,33 @@
   end of the line just out of frame. At 260 px tall on phones, the popup's top can sit under
   the +/− control. That's standard Leaflet, so I left it alone. "Show on map" is grey, not
   orange, so it isn't confused with the Strava link.
+
+## M6 - Full pass (2026-10-01)
+- Done: README gains "The Segment map" (Leaflet chunk, stored geometry only, OSM tiles and the
+  usage policy) and a paragraph on the e2e tile fixture (e2e/tests/fixtures.ts, the ESLint ban,
+  the blank PNG). One fix from the click-through: at 260 px on phones, a popup's top sat under the
+  +/− control and hid the Segment's name, so popups now auto-pan with a top-left padding of
+  [5, 80] (POPUP_PAN_PADDING_TOP_LEFT in SegmentMap.tsx). With that, popups clear the control
+  (popup top at 81 px, control bottom at 75 px).
+- Verified: pnpm typecheck, lint, test (shared 238, web 126, api 421), test:e2e (37) and build
+  all pass, before and after the fix. Build chunks: main entry index-*.js 369.84 kB (gzip 114.26
+  kB); map chunk SegmentMap-*.js 156.50 kB (gzip 46.04 kB) plus SegmentMap-*.css 15.09 kB (gzip
+  6.36 kB). Leaflet's code (`_leaflet_id`) appears only in the map chunk.
+  MCP click-through on `pnpm dev:live` as the real Runner, against the saved Search Area (Live
+  smoke test run start, 1 km; no new search, radius untouched). Before opening Results I capped
+  the Runner with POST /api/test/live-read-allowance {reads: 8}, because 34 segment-detail jobs
+  were queued and the visit check was due. Counter 1992 -> 1995: 3 reads, plus the sign-in's
+  GET /athlete (not Runner-counted). At 1280 px: 12 real tiles loaded; 7 target routes on the
+  right streets (Gore Vale Ave through Trinity Bellwoods, Bathurst, Coronation Park and the
+  lakeshore). This area has no Nearest misses and no start-only Segments, so neither appears; e2e
+  covers both. The 12 Suspicious records aren't drawn and keep their links. Clicking a route opened
+  its popup (name, Your target, 438 m · 2.1%, Record/Predicted/PB), and its "View on Strava" opened
+  strava.com/segments/39068214 in a new tab. "Show on map" from a scrolled-down row scrolled back,
+  fitted the route and opened its popup. At 375 px: the map is 260 px tall, a wheel over it
+  scrolls the page (no zoom), and on an emulated iPhone (isMobile/hasTouch, L.Browser.mobile
+  true) a one-finger touch swipe on the map scrolled the page 201 px. "Show on map" works, with
+  no horizontal overflow. No console errors or warnings apart from a 404 for /favicon.ico.
+- Notes: the app has no favicon, so Chrome's automatic /favicon.ico request 404s in dev. That's
+  not map-related and adding one is a product choice, so I left it. Because of the allowance cap,
+  the real Runner's background work in mykom_e2e_live waits until the next UTC day, the same
+  side effect the live smoke test has. Every task in this PRD is now ticked.

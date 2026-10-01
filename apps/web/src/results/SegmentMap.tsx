@@ -42,6 +42,11 @@ const FIT_OPTIONS: L.FitBoundsOptions = { padding: [12, 12] };
  * where the map ends up.
  */
 const SHOW_SEGMENT_OPTIONS: L.FitBoundsOptions = { padding: [24, 24], animate: false };
+/**
+ * A popup's pan keeps it below the +/− control (top left, about 74 px tall), which would
+ * otherwise cover the Segment's name on the 260 px phone map.
+ */
+const POPUP_PAN_PADDING_TOP_LEFT: L.PointTuple = [5, 80];
 
 const toLeaflet = ({ lat, lng }: LatLng): L.LatLngTuple => [lat, lng];
 const toLeafletBounds = (box: BoundingBox): L.LatLngBoundsExpression => [
@@ -148,7 +153,7 @@ function SegmentLayer({
       // Also fires when a poll drops the Segment: removing its layer closes its popup.
       eventHandlers={{ popupclose: () => onPopupClose(segmentId) }}
     >
-      <Popup>
+      <Popup autoPanPaddingTopLeft={POPUP_PAN_PADDING_TOP_LEFT}>
         <SegmentPopup feature={feature} />
       </Popup>
       {shape.kind === 'route' ? (

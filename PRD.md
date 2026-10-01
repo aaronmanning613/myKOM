@@ -154,7 +154,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Wrap-up
 
-- [ ] **M6** Full pass:
+- [x] **M6** Full pass:
   - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`. The build output must show Leaflet in a separate chunk from the main entry; record both chunk sizes in progress.txt;
   - a final MCP click-through of the Results page as the real Runner (`pnpm dev:live`), at desktop and 375 px, against the Search Area already saved:
     - don't start a new search or change the radius;
