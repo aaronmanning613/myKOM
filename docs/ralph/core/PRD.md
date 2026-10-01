@@ -147,7 +147,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 - [x] **J2** Budget:
   - `strava_read_usage` keeps app-wide 15-minute window and day counters (synced from the rate-limit headers) and per-Runner daily reads;
   - drains stop before using the last 10 reads of a window, which stay reserved for interactive calls;
-  - a Runner at 500 reads today has their jobs deferred to the next UTC day;
+  - a Runner at `RUNNER_DAILY_READS` (2,000) reads today has their jobs deferred to the next UTC day;
   - a 429 defers to the next window.
   - Expose `budgetStatus(runnerId)` for the "continues tomorrow" message.
   - **Check:** seam-2 tests for each rule with a fake clock.

@@ -22,7 +22,7 @@ import {
 } from './client.js';
 import { createLiveTokenStore } from './live-token-store.js';
 
-/** A hard cap, well inside Strava's 100 reads per 15 minutes shared by everything. */
+/** A hard cap, well inside Strava's 200 reads per 15 minutes shared by everything. */
 const MAX_STRAVA_CALLS = 5;
 const RATE_LIMIT_HEADERS = [
   'x-ratelimit-limit',

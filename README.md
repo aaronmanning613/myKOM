@@ -126,7 +126,7 @@ Every test above mocks Strava. These opt-in suites run against the Runner's **re
 
 **Never Disconnect with the live token.** Disconnect calls Strava's deauthorize, which revokes the token, and you'd have to re-consent with `pnpm strava:authorize`. In live test mode deauthorize is blocked: `POST /api/auth/disconnect` replies 403 `deauthorize_blocked` and deletes nothing. Don't click Disconnect while signed in live; Disconnect stays covered by the mocked tests only. Never use a Strava password or automate Strava's login or approval pages either.
 
-**Rate limits.** Strava allows the app 100 read requests per 15 minutes and 1,000 per day, shared by everything using the app (including real sign-ins). Run the live suites sparingly, e.g. before a release rather than on every change.
+**Rate limits.** Strava allows the app 200 read requests per 15 minutes and 2,000 per day (400 and 4,000 for all requests), shared by everything using the app (including real sign-ins). Run the live suites sparingly, e.g. before a release rather than on every change.
 
 ### Manual checks
 

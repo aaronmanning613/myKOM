@@ -72,8 +72,8 @@ export const SEARCH_STOP_COVERAGE = 0.95;
 /** Ground coverage is measured in grid cells about this many metres across. Starting value. */
 export const COVERAGE_CELL_M = 100;
 
-/** Strava reads a Runner may use per UTC day. Decided. */
-export const RUNNER_DAILY_READS = 500;
+/** Strava reads a Runner may use per UTC day: the whole app day while there is one Runner. Decided. */
+export const RUNNER_DAILY_READS = 2000;
 
 /** Reads kept back in each 15-minute window for interactive calls. Decided. */
 export const INTERACTIVE_READ_RESERVE = 10;
