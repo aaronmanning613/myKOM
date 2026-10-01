@@ -8,6 +8,10 @@ export const testRunner: Me = {
   id: 1,
   firstName: 'Paula',
   avatarUrl: 'https://example.com/paula.jpg',
+  sex: 'F',
+  recordGender: null,
+  onboarded: true,
+  suggestion: null,
 };
 
 export function json(body: unknown, status = 200): Response {
@@ -19,13 +23,15 @@ export function json(body: unknown, status = 200): Response {
 
 /**
  * Unlisted routes respond 404. Unless overridden, the health route answers OK, the
- * Fitness Profile is empty and there's no Search Area.
+ * Fitness Profile is empty and there's no Search Area or Mapped Area.
  */
 export function stubApi(routes: Record<string, Handler>) {
   const all: Record<string, Handler> = {
     'GET /api/health': () => json({ ok: true, db: 'up' }),
-    'GET /api/fitness-profile': () => json({ benchmarks: [] }),
+    'GET /api/fitness-profile': () =>
+      json({ benchmarks: [], generation: null, suggestion: null, resyncedAt: null }),
     'GET /api/search-area': () => json({ searchArea: null }),
+    'GET /api/mapped-areas': () => json({ mappedAreas: [] }),
     ...routes,
   };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

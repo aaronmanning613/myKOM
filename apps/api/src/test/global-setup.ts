@@ -4,7 +4,8 @@ import type { TestProject } from 'vitest/node';
 import { createDatabase } from '../db/client.js';
 import { ensureDatabase } from '../db/ensure-database.js';
 import { runMigrations } from '../db/migrations.js';
-import { loadRootEnvFile, readEnv } from '../env.js';
+import { DEV_TOKEN_ENCRYPTION_KEY, loadRootEnvFile, readEnv } from '../env.js';
+import { createTokenCipher } from '../strava/token-cipher.js';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -27,7 +28,7 @@ export default async function setup(project: TestProject) {
 
   const database = createDatabase(url);
   try {
-    await runMigrations(database.db);
+    await runMigrations(database.db, createTokenCipher(DEV_TOKEN_ENCRYPTION_KEY));
   } finally {
     await database.close();
   }

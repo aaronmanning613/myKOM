@@ -1,7 +1,12 @@
 import type { BenchmarkDistanceId } from './benchmarks.js';
+import type { RecordGender } from './target-record.js';
+import type { BenchmarkTime } from './vdot.js';
 
-/** Where a Benchmark came from: entered by the Runner, or imported from Strava's best efforts. */
-export const BENCHMARK_SOURCES = ['runner', 'strava'] as const;
+/**
+ * Where a Benchmark's value came from: `runner` means the Runner entered it (pinned);
+ * `generated` means it follows the Fitness Profile generated from their runs.
+ */
+export const BENCHMARK_SOURCES = ['runner', 'generated'] as const;
 export type BenchmarkSource = (typeof BENCHMARK_SOURCES)[number];
 
 /** A Benchmark longer than this is a typo, not a run. */
@@ -11,19 +16,90 @@ export type Benchmark = {
   distance: BenchmarkDistanceId;
   seconds: number;
   source: BenchmarkSource;
+  /**
+   * The applied generation's value at this distance (null without one), so a pinned row can
+   * show "generated X · use generated".
+   */
+  generatedSeconds: number | null;
+  /** Pace slower than a longer Benchmark's: ignored by the Predicted Time model. */
+  soft: boolean;
   /** ISO 8601 timestamp of the last change. */
   updatedAt: string;
 };
 
-/** What `GET` and `PUT /api/fitness-profile` return: one Benchmark per distance that has one. */
-export type FitnessProfile = {
-  benchmarks: Benchmark[];
+/** A run a generation was estimated from, for the "Estimated from …" sentence. */
+export type ProfileSourceRun = {
+  activityId: number;
+  name: string;
+  /** ISO 8601 start time. */
+  startDate: string;
+  /** The Benchmark distance the run is nearest. */
+  benchmark: BenchmarkDistanceId;
+  /** Metres. */
+  distance: number;
+  /** Seconds. */
+  movingTime: number;
 };
+
+/** A Fitness Profile generated from the Runner's runs. */
+export type ProfileGeneration = {
+  vdot: number;
+  /** The one or two runs it was estimated from, best first (runs since deleted are left out). */
+  sources: ProfileSourceRun[];
+  /** ISO 8601. */
+  generatedAt: string;
+};
+
+/** A newer generation waiting for the Runner to apply or dismiss it. */
+export type ProfileSuggestion = ProfileGeneration & {
+  /** All 13 suggested values; applying changes only the unpinned Benchmarks. */
+  benchmarks: BenchmarkTime[];
+};
+
+/** What the `/api/fitness-profile` endpoints return. */
+export type FitnessProfile = {
+  /** One Benchmark per distance that has one, shortest first. */
+  benchmarks: Benchmark[];
+  /** The applied generation; null when none has been applied or no run qualified. */
+  generation: ProfileGeneration | null;
+  suggestion: ProfileSuggestion | null;
+  /** ISO 8601 time of the last "Resync my runs", or null if never. */
+  resyncedAt: string | null;
+};
+
+/**
+ * The pending suggestion as `GET /api/me` reports it, for the banner: "Your 10K on 27 Sep
+ * suggests VDOT 70.1 → 71.3".
+ */
+export type SuggestionSummary = {
+  vdot: number;
+  /** The applied generation's VDOT, or null without one. */
+  appliedVdot: number | null;
+  /** The best run it was estimated from (null if it has since been deleted). */
+  source: ProfileSourceRun | null;
+};
+
+/** The body of `POST /api/fitness-profile/suggestion`. */
+export type SuggestionAction = { action: 'apply' | 'dismiss' };
+
+/**
+ * One row of `PUT /api/fitness-profile`: a time pins the Benchmark (unless unchanged);
+ * `useGenerated` unpins it back to the generated value.
+ */
+export type FitnessProfileUpdateRow =
+  | { distance: BenchmarkDistanceId; seconds: number }
+  | { distance: BenchmarkDistanceId; useGenerated: true };
 
 /**
  * The body of `PUT /api/fitness-profile`: the Runner's complete set of Benchmarks.
  * Distances left out are cleared.
  */
 export type FitnessProfileUpdate = {
-  benchmarks: { distance: BenchmarkDistanceId; seconds: number }[];
+  benchmarks: FitnessProfileUpdateRow[];
 };
+
+/** The body of `POST /api/fitness-profile/update-all`: the one time to re-derive all 13 from. */
+export type UpdateAllRequest = BenchmarkTime;
+
+/** The body and reply of `PUT /api/preferences`. */
+export type Preferences = { recordGender: RecordGender };

@@ -1,89 +1,287 @@
-# PRD: myKOM foundation
+# PRD: myKOM core
 
 ## Goal
 
-Build the foundation of myKOM: a working monorepo with a Node API and React web app, Strava login, a Fitness Profile screen where the Runner enters Benchmarks, and a Search Area input. This is the decision-independent groundwork from the wayfinder map ([#1](https://github.com/aaronmanning613/myKOM/issues/1)). The product features that rank Segments come later, once the map's open tickets are decided. Domain terms are defined in `CONTEXT.md`; use them in code and UI.
+Build myKOM on top of the merged foundation:
 
-Source issues: [#14 Scaffold the monorepo](https://github.com/aaronmanning613/myKOM/issues/14), [#18 App shell and navigation](https://github.com/aaronmanning613/myKOM/issues/18), [#15 Strava OAuth login](https://github.com/aaronmanning613/myKOM/issues/15), [#16 Fitness Profile screen](https://github.com/aaronmanning613/myKOM/issues/16), [#17 Search Area input](https://github.com/aaronmanning613/myKOM/issues/17). Read the relevant issue with `gh issue view <n>` when a task needs more detail.
+- a Fitness Profile generated from the Runner's Strava runs;
+- the Predicted Time model;
+- gathering Known Segments within Strava's rate limits;
+- ranking into Your targets, Nearest misses and Suspicious records;
+- the first-run wizard, the Fitness Profile, Search Area and Results pages, and the suggestion banner;
+- everything needed to deploy.
+
+**The source of truth is the spec, [Spec: myKOM](https://github.com/aaronmanning613/myKOM/issues/27)** (`gh issue view 27`). Each task below names the spec section it builds. Read that section before starting, because the task lines are summaries. Where a task and the spec disagree, the spec wins. Domain terms are defined in `CONTEXT.md`; use them in code, UI and tests.
+
+The foundation loop's PRD and progress log are archived in `docs/ralph/foundation/`. Its progress log records tooling gotchas (pnpm build approvals, ESM `.js` imports, live-test rules) that still apply.
 
 ## Stack
 
-- TypeScript (strict) everywhere, pnpm workspaces (via corepack), Node 22 (`.nvmrc`).
-- `apps/api`: Node + Fastify.
-- `apps/web`: React + Vite + Tailwind + React Router.
-- `packages/shared`: code used by both apps.
-- Drizzle ORM + drizzle-kit migrations; Postgres 16 in `docker-compose.yml` on **host port 5433**.
-- Vitest in every package (Testing Library for web); Playwright (`@playwright/test`) for end-to-end tests, using the installed Google Chrome (`channel: 'chrome'`, no browser download); ESLint (flat config) + Prettier.
+This is unchanged from the foundation:
+
+- TypeScript (strict), pnpm workspaces, Node 22;
+- `apps/api` is Fastify + Drizzle + Postgres 16 (docker compose, host port 5433);
+- `apps/web` is React + Vite + Tailwind + React Router;
+- `packages/shared` holds code used by both;
+- Vitest, Playwright (`channel: 'chrome'`), ESLint + Prettier.
 
 ## Conventions
 
-- Config comes from the repo-root `.env` (git-ignored; already holds `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET`). Every variable the app reads is listed, without values, in a committed `.env.example`. Never read, print or commit `.env`.
-- The web dev server proxies `/api` to the API.
-- Strava's callback domain is registered as `localhost`; any port works.
-- Tests never hit real external APIs: mock `fetch` for Strava and Nominatim.
-- Keep the DB schema limited to what each task needs.
-- **UI verification.** For every task that touches UI, before ticking it: (1) start `pnpm dev` in the background, (2) use the Playwright MCP browser tools (`mcp__playwright__*`) to open the app and click through what you built like a user would, checking the page actually renders, reacts and shows no console errors, and at phone width too, (3) fix anything broken, (4) stop the dev server. Then make sure the task's end-to-end test covers the same flow, so later iterations can't silently break it.
-- **Signing in during e2e tests.** Never use real Strava credentials. From A3 onwards, e2e tests sign in through a test-only route (e.g. `POST /api/test/login` that creates a Runner and sets the session cookie), registered only when `NODE_ENV=test` or an `E2E=1` flag is set, never in production.
+The foundation's conventions still apply:
+
+- Config comes from `.env` (never read or print it). Every variable goes in `.env.example`.
+- Tests never hit real external APIs.
+- **UI verification:** after UI work, click through with the Playwright MCP browser at desktop and phone width, then make sure an e2e test covers the same flow.
+- e2e tests sign in with `POST /api/test/login`.
+
+New conventions:
+
+- **The domain core is pure.** Fitness Profile generation, VDOT, `xoms` parsing, the Predicted Time model, the Implausible check and `rank(...)` live in `packages/shared` with **no I/O** (no DB, fetch, clock or env). The time is passed in. The API and web call them. This is test seam 1.
+- **The job queue** (`drain(...)` against Postgres, with a Strava client passed in) is test seam 2. **The HTTP API** (`app.inject`, with a fake Strava at `fetch`) is test seam 3. Test external behaviour at the highest seam that covers it. Don't test private helpers.
+- **Tunables:** every constant in the spec's Tunables table is one named, exported constant in a single shared module, with a comment saying whether it's decided or a starting value.
+- **Strava fixtures:** faked Strava responses must match the shape of real ones. A task may capture real responses from the live account (`.strava-live-token.json`, through the existing live token store), using **at most 10 Strava calls per task**, and save them as scrubbed fixtures: no tokens, and no other athletes' names or photos (drop `local_legend` and similar). Keep only the fields myKOM reads.
+- **Never store raw Strava JSON** in the database. Map responses to our own shapes at the Strava client.
+- **Words:** never use "gap" for Predicted Time ÷ Target Record (on Strava, GAP means grade adjusted pace). Call it the **record ratio**. Never show another athlete's name or photo.
+- **Migrations:** one drizzle-kit migration per task that changes the schema, applied by `pnpm db:migrate`. Existing data must migrate, not be dropped (except where a task says so).
 
 ## Out of scope
 
-Anything the wayfinder map still has open: importing Strava history or best efforts, fetching or caching Known Segments, Predicted Time, ranking, the results list, Strava webhooks, a map view, hosting/deployment. If a task seems to need one of these, stop at the simplest placeholder and leave a `// TODO(decision):` comment.
+- everything in the spec's Out of Scope section;
+- webhooks, altitude streams, `/segments/explore`, the leaderboard endpoint, scraping;
+- a map view;
+- a Runner-set margin;
+- the IP fallback in production;
+- anything that provisions real cloud resources (see "Human setup" at the end).
 
 ## Tasks
 
-Work top to bottom. Each task's **Check** must pass, along with `pnpm typecheck && pnpm lint && pnpm test` (and `pnpm test:e2e` once E1 is done), before it is ticked.
+Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e`, before it's ticked.
 
-### Scaffold (#14)
+### Domain core (spec: Fitness Profile generation, Predicted Time model, Target Record/Held/Implausible, Ranking, Tunables)
 
-- [x] **F1** Root workspace: `.nvmrc` (`22`), root `package.json` (`packageManager` pnpm via corepack, `engines.node` `>=22`), `pnpm-workspace.yaml`, `tsconfig.base.json`, ESLint flat config, Prettier config and ignore file, and root scripts `dev`, `build`, `test`, `lint`, `typecheck`, `db:generate`, `db:migrate` (scripts may be stubs until their packages exist). **Check:** `pnpm install && pnpm lint` passes.
-- [x] **F2** `apps/api`: Fastify app built by a factory function (so tests can use `app.inject`), env loading from the repo-root `.env`, and `GET /api/health` returning `{ ok: true }`. **Check:** a Vitest test passes, and `curl localhost:<api port>/api/health` works against the running server.
-- [x] **F3** `docker-compose.yml` (Postgres 16, host port 5433, named volume), Drizzle config, a DB client module, an initial migration, and `.env.example`. `/api/health` now also reports whether the DB is reachable. **Check:** `docker compose up -d && pnpm db:migrate` succeeds, and health reports the DB as up.
-- [x] **F4** `apps/web`: Vite + React + TypeScript + Tailwind, Vitest + Testing Library, and the `/api` proxy. The home page fetches and shows the health status. **Check:** the web test passes and the web app builds.
-- [x] **F5** Root `pnpm dev` runs the API and web together, and `README.md` gets local run instructions (prerequisites, `.env` setup, Docker, migrate, dev). **Check:** start `pnpm dev`, curl both ports, then stop it.
-- [x] **E1** End-to-end testing: `@playwright/test` in an `e2e/` workspace package with a config that uses `channel: 'chrome'` and starts the API and web servers itself (`webServer`), a root `pnpm test:e2e` script, and a first test that the home page shows the health status. Keep `pnpm test` for unit tests only. **Check:** `pnpm test:e2e` passes, and the UI verification convention is followed (click through the home page with the Playwright MCP browser).
+- [x] **C1** Benchmark distances 7 → 13.
+  - The shared distance list becomes 400 m, 800 m, 1K, 1 mile, 3K, 5K, 8K, 10K, 15K, 10 mile, half (21,097.5 m), 30K and marathon (42,195 m). ½ mile and 2 mile are dropped.
+  - Add a migration that deletes stored Benchmarks for the dropped distances.
+  - Update the Fitness Profile screen, the API validation and every test.
+  - Also add the tunables module (see Conventions) holding the spec's full Tunables table.
+  - **Check:** shared, API and web tests pass with 13 rows; the Fitness Profile e2e test enters and persists a Benchmark at a new distance (e.g. 8K).
+- [x] **C2** VDOT in the shared core:
+  - `vdotOf(metres, seconds)` and `timeFor(vdot, metres)` (Daniels & Gilbert; the exact formulas are in the spec);
+  - `benchmarksFromVdot(vdot)` giving all 13;
+  - `updateAllFrom(distance, seconds)`.
+  - **Check:** table tests reproduce the spec's numbers: VDOT 71.1 → 5K 14:43, 10K 30:36, marathon 2:21:16; a 16:00 5K → 10K 33:13, half 1:13:19, marathon 2:33:26 (±1 s).
+- [x] **C3** `generateFitnessProfile(activities, now)`:
+  - use runs only, from the last 3 years;
+  - for each distance D, use runs in the 0.98 D–1.06 D band, scale to D by moving time × D ÷ distance, and take the fastest;
+  - score them by VDOT and average the best two, but the second only counts if it's within 8 of the best;
+  - return `{ vdot, sources: 1–2 runs, benchmarks } | null`.
+  - **Check:** table tests cover:
+    - the test-account case (marathon 2:21:03 + 10K 30:39 → VDOT ≈ 71.1);
+    - one race plus easy runs (the guard drops the easy run);
+    - no qualifying runs → null;
+    - runs older than 3 years are ignored;
+    - moving time is used, not elapsed;
+    - a run just outside the band is ignored.
+- [x] **C4** Target Record parsing:
+  - `parseXoms` accepts `"17s"`, `"1:24"` and `"h:mm:ss"`, and anything else is `unparseable`;
+  - `recordFor(segment, gender)` returns seconds, or a status of `hazardous`/`missing`/`unparseable`;
+  - `isHeld(pb, record)` counts whole-second ties as Held, and a missing PB is not Held.
+  - **Check:** table tests for every format, hazardous, missing gender, garbage strings and ties.
+- [x] **C5** The flat Predicted Time model:
+  - usable Benchmarks exclude **soft** ones (pace slower than a longer Benchmark's pace), and at least two are needed;
+  - log-log interpolation between neighbours;
+  - extrapolation past either end uses the two nearest Benchmarks' exponent clamped to 1.02–1.15, and is low confidence;
+  - return the soft set so the UI can flag it.
+  - **Check:** tests for interpolation exactness at Benchmark points, extrapolation both ends with clamping, soft detection, and < 2 usable → no prediction.
+- [x] **C6** Grade and the full `predict(benchmarks, segment, pb)`:
+  - equivalent flat distance: uphill uses Minetti `Cr(i)/3.6`; downhill is capped at 0.88 around −9.5%, easing linearly back to 1.0 by −20% (a starting value);
+  - rolling penalty (starting values from the spec);
+  - PB floor = min(model, PB), only when no Benchmark is pinned;
+  - Prediction Confidence with a reason: high when the PB floor set the time; otherwise low when outside the Benchmark range (including < 400 m), when |max grade| > 15%, or when the Segment is rolling; otherwise high.
+  - **Check:** tests for flat vs uphill vs downhill ordering, the downhill cap, rolling → low, pinned disables the floor, the floor → high, and the steep → low reason.
+- [x] **C7** Implausible Records:
+  - a world-record table (men's and women's; 100 m, 200 m, 400 m, 800 m, 1500 m, mile, 3000 m, 5000 m, 10,000 m, half, marathon, as constants with a source comment) is run through `predict` as a Fitness Profile (no PB floor) to get a grade-adjusted world-record time;
+  - `isImplausible(record, segment, gender)` is true when record < WR time × 1.05.
+  - **Check:** tests: a 160 m / 17 s KOM is **not** flagged (as the spec says); an obviously impossible record (e.g. 1 km in 1:30) is flagged; QOM uses the women's table.
+- [x] **C8** `rank(input)`, as sketched in the spec's Ranking section:
+  - area membership by the start point's great-circle distance;
+  - the exclusion reasons, in order;
+  - Your targets = Achievable (≤ record × 1.05) + all Held, minus non-Held Implausible; high confidence first, then Impressiveness desc, record ratio asc, id;
+  - Nearest misses when < 5 Achievable: up to 10, by record ratio;
+  - Suspicious = non-Held Implausible, by Impressiveness;
+  - counts;
+  - pending (no details) Segments are left out of the lists.
+  - **Check:** table tests for each list rule, Held + Implausible appearing only in the main list, the Nearest-misses threshold at exactly 4 vs 5, tie-breaks, and every exclusion reason.
 
-### App shell (#18)
+### Data and Strava (spec: Data model, Background work, Strava API Policy stance)
 
-- [x] **S1** React Router layout with a header and nav, and routes `/login`, `/fitness-profile`, `/search-area`, and `/results` (a "coming soon" placeholder: the results list waits on the ranking decisions). Responsive down to phone width, plain Tailwind, no component library. **Check:** a unit test renders each route, and an e2e test navigates between every route via the nav at desktop and phone widths.
+- [x] **D1** Token encryption:
+  - Strava access and refresh tokens are stored AES-256-GCM encrypted, with the key from `TOKEN_ENCRYPTION_KEY` (32 bytes, base64; add it to `.env.example`);
+  - it's required when `NODE_ENV=production`; outside production, fall back to a fixed dev key and log a warning;
+  - a migration encrypts existing plain-text rows.
+  - The live token store file is unchanged.
+  - **Check:** inject/DB tests: the stored columns aren't the plain token; sign-in, refresh and disconnect still work; a wrong key fails clearly; the migration test round-trips an existing row.
+- [x] **D2** Schema for the core, as in the spec's Data model:
+  - `runners` gains `record_gender`, `onboarded_at`, `activities_checked_at` and `resynced_at`;
+  - `benchmarks.source` becomes `runner | generated` (migrate the old values), and gains `generated_seconds`;
+  - new tables: `fitness_profiles`, `activities`, `segments` (shared, with a start lat/lng bounding-box index), `runner_segments`, `mapped_areas`, `crawls`, `strava_jobs`, `strava_read_usage`, `app_state`;
+  - every per-Runner table cascades from `runners`.
+  - **Check:** the migration applies to a DB with foundation data; the disconnect test now asserts every per-Runner table is emptied and a shared `segments` row survives.
+- [x] **D3** Strava client reads, all through the existing client:
+  - `listActivities({ after?, page })`, `getActivity(id)`, `getSegment(id)` and `getStarredSegments(page)`;
+  - each maps to our own shapes (activity summary with polyline and bbox; efforts with the embedded summary Segment, achievements and `kom_rank`; Segment detail with `xoms`, `athlete_count`, `hazardous`, geometry and `athlete_segment_stats`), with no raw JSON kept;
+  - parse the `x-ratelimit-*` / `x-readratelimit-*` headers into every result;
+  - typed errors for 429 (with retry timing) and **revoked** (`invalid_grant` on refresh, or 401).
+  - Capture fixtures as described in Conventions.
+  - **Check:** client tests with mocked `fetch` over the fixtures, including header parsing, 429 and revoked; a `.live.test.ts` for `getSegment` + `listActivities` (≤ 3 calls) in `pnpm test:live`.
+- [x] **D4** Revocation cascade: a revoked token error during any Strava call made for a Runner runs the same deletion as Disconnect and ends their session, so the next request is a 401 and the web app shows the login page.
+  - **Check:** an inject test where the fake Strava rejects the refresh with `invalid_grant`: the Runner's rows are gone and `/api/me` is 401.
 
-### Strava OAuth (#15)
+### Job queue (spec: Background work and the Strava budget)
 
-- [x] **A1** Drizzle schema and migration for `runners` (Strava athlete id unique, first name, sex nullable, avatar URL, subscriber flag, timestamps) and `strava_tokens` (runner FK with cascade delete, access token, refresh token, expires_at, granted scopes). **Check:** the migration applies to the local DB.
-- [x] **A2** A Strava client module, the single place every Strava call goes through: build the authorize URL (scopes `read,read_all,activity:read_all,profile:read_all`, `approval_prompt=auto`, a `state` value), exchange a code for tokens, `getValidAccessToken(runnerId)` that refreshes when the token expires within 5 minutes and saves the new one, and `deauthorize(accessToken)`. **Check:** unit tests with mocked `fetch` cover exchange, refresh-when-expiring, no-refresh-when-fresh, and error handling.
-- [x] **A3** Auth routes: `GET /api/auth/strava` redirects to Strava with a signed, short-lived CSRF state cookie; `GET /api/auth/strava/callback` checks the state, exchanges the code, upserts the Runner and tokens, and records the scopes actually granted (Runners can untick them); an httpOnly signed session cookie; `GET /api/me` (401 when signed out); `POST /api/auth/logout`. **Check:** inject tests for the redirect, a callback with mocked Strava, a bad state, `/api/me` and logout.
-- [x] **A4** `POST /api/auth/disconnect`: call Strava deauthorize, then delete all of the Runner's data (Strava's API Policy requires deletion on disconnect) and clear the session. **Check:** a test asserts the Runner's rows are gone.
-- [x] **A5** Web: a login page with a "Connect with Strava" button (follow Strava's brand guidelines), an auth guard that sends signed-out users to `/login`, and a header showing the Runner's avatar and name with Log out and Disconnect (Disconnect asks for confirmation and says data will be deleted). **Check:** component tests with a mocked `/api/me` for the signed-in and signed-out states. Add the test-only sign-in route (see Conventions); e2e tests cover: signed-out redirect to `/login`, the Connect button pointing at `/api/auth/strava`, signed-in header, log out, and disconnect with confirmation.
+- [x] **J1** Queue core:
+  - enqueue with kind, target, Runner, crawl and priority (search > new-run > mapping > freshness), with de-duplication of identical pending jobs;
+  - `drain({ deadline, now, strava })` claims with `FOR UPDATE SKIP LOCKED`, runs handlers by kind, and records success, retry (attempts, backoff via `not_before`) or failure;
+  - handlers are registered by kind.
+  - **Check:** seam-2 tests against Postgres: priority order; `not_before` respected; two concurrent drains never run the same job; the deadline stops the drain; retries give up after the attempt limit.
+- [x] **J2** Budget:
+  - `strava_read_usage` keeps app-wide 15-minute window and day counters (synced from the rate-limit headers) and per-Runner daily reads;
+  - drains stop before using the last 10 reads of a window, which stay reserved for interactive calls;
+  - a Runner at 500 reads today has their jobs deferred to the next UTC day;
+  - a 429 defers to the next window.
+  - Expose `budgetStatus(runnerId)` for the "continues tomorrow" message.
+  - **Check:** seam-2 tests for each rule with a fake clock.
+- [x] **J3** Handlers:
+  - **activity detail:** upsert summary-only `segments` rows; update `runner_segments` (via run, effort count, best time/date, top-10 hint); an effort with a KOM/QOM achievement or top-10 hint enqueues that Segment's detail at **search** priority; mark `detail_fetched_at`;
+  - **Segment detail:** fill the shared `segments` row, `record_status` (with a log line for `unparseable`, including the raw string), `athlete_count` and geometry; take the PB from `athlete_segment_stats` when faster;
+  - **starred:** upsert `runner_segments` via starred.
+  - **Check:** seam-2 tests with fixture responses for each handler, including "I just took it" and a starred-never-run Segment.
+- [x] **J4** Crawls (spec: Known Segment gathering):
+  - for a centre + radius, select the Runner's stored activities whose polyline passes through the area (bbox prefilter, then decoded polyline);
+  - order greedily by new ground (about 100 m grid cells), newest first on ties;
+  - enqueue run details progressively;
+  - stop at 95% coverage, or when the last 10 runs added < 3 new Segments;
+  - enqueue missing Segment details in the spec's order (top-10/KOM hints, then most run, then nearest the centre);
+  - track progress ("N of ~M") and status on `crawls`.
+  - A Mapped Area crawl runs at mapping priority to 100% coverage.
+  - **Check:** seam-2 tests with synthetic polylines for selection, greedy ordering, both stop rules, detail ordering and progress counts.
+- [x] **J5** Tick and housekeeping:
+  - `POST /internal/tick` runs a time-capped drain (about 20 s) and, once a day (tracked in `app_state`), housekeeping: enqueue freshness re-fetches for Segment details older than 30 days, oldest first, recently searched areas first; prune finished jobs and old usage rows;
+  - the route verifies a Google OIDC token (the audience is the service URL, the issuer is Google, and the email is the configured Scheduler service account, from new env vars in `.env.example`);
+  - outside production, the dev server also calls the same function on a 5-minute `setInterval`, and test mode can call it without a token.
+  - **Check:** inject tests: missing/invalid/wrong-audience tokens are rejected (sign test tokens with a local key via a JWKS stub); housekeeping runs once per day; freshness picks the right Segments.
 
-### Fitness Profile (#16)
+### New runs and the Fitness Profile (spec: Fitness Profile generation, New activities)
 
-- [x] **P1** In `packages/shared`: the Benchmark distance list (400m, 1/2 mile, 1K, 1 mile, 2 mile, 5K, 10K; defined once so it can change), time parsing and formatting (`ss`, `m:ss`, `h:mm:ss`, rejecting bad input), and pace per km. **Check:** unit tests including edge cases (seconds ≥ 60 in `m:ss`, empty strings, leading zeros).
-- [x] **P2** A `benchmarks` table (runner FK with cascade delete, distance, seconds, `source` enum `runner | strava`, updated_at; one row per runner per distance) and `GET /api/fitness-profile` / `PUT /api/fitness-profile`, scoped to the signed-in Runner. Everything is `source: runner` for now; the Strava import comes later. **Check:** inject tests, including that one Runner can't read or change another's Benchmarks.
-- [x] **P3** The Fitness Profile screen: one row per Benchmark distance with a time input, pace shown, inline validation errors, clear and save. **Check:** a component test covering edit, invalid input and save, and an e2e test that enters Benchmarks, reloads, and sees them persisted.
+- [x] **N1** Activity sync:
+  - `syncActivities(runner, mode)`, where `full` pages through the whole activity list, upserts runs, deletes the Runner's stored runs that no longer exist and recomputes the affected `runner_segments` bests, and `new` fetches `after=<latest stored start>`;
+  - both are interactive calls (they use the reserve);
+  - on first sign-in, run `full` plus the starred Segments fetch.
+  - **Check:** seam-3 tests with a fake Strava: first sign-in stores the runs; `new` fetches only after the latest; `full` removes a deleted run and its effort contribution.
+- [x] **N2** Profile persistence and endpoints:
+  - after a sync, generate (C3) and store the applied generation in `fitness_profiles`, setting unpinned Benchmarks to generated values and keeping `generated_seconds` on pinned ones;
+  - `GET /api/fitness-profile` returns each Benchmark with value, source, generated value and soft flag, plus the "Estimated from …" source runs and any pending suggestion;
+  - `PUT` pins edited rows and unpins "use generated" ones;
+  - `POST /api/fitness-profile/update-all`, `/reset` and `/regenerate` (runs a `new` sync, ignoring the throttle, and applies directly);
+  - `PUT /api/preferences` sets KOM/QOM.
+  - **Check:** seam-3 tests for each endpoint, including pins surviving regeneration, update-all overwriting pins, and reset.
+- [x] **N3** The visit check and suggestions:
+  - on the first authenticated request when `activities_checked_at` is older than 3 hours, run a `new` sync;
+  - queue each new run's detail at new-run priority; queue Segment details for new Segments that start inside a saved Search Area or Mapped Area at mapping priority;
+  - regenerate the profile, and if the unpinned values differ from the applied ones and from the last dismissed values, store a pending suggestion;
+  - `POST /api/fitness-profile/suggestion` with `{ action: 'apply' | 'dismiss' }`;
+  - `POST /api/activities/resync` runs a `full` sync, sets `resynced_at`, then does the same;
+  - `GET /api/me` gains `onboarded` and `suggestion` (a summary for the banner).
+  - **Check:** seam-3 tests: throttle respected; new-run jobs queued; suggestion created, applied, dismissed, not re-shown for the same values, re-shown for new ones; pinned untouched; resync reconciles.
 
-### Search Area (#17)
+### Search and results API (spec: Ranking, Known Segment gathering, API)
 
-- [x] **L1** Radius options in one config (5, 10, 25, 50 km, a placeholder set) and a `search_areas` table (runner FK with cascade delete, label, lat, lng, radius_km; one per runner) with `GET /api/search-area` / `PUT /api/search-area`. **Check:** inject tests, including an invalid radius being rejected.
-- [x] **L2** A Nominatim client and `GET /api/geocode?q=`: server-side only, throttled to at most 1 request per second across the whole app, a User-Agent naming the app plus a contact taken from `.env` (`NOMINATIM_USER_AGENT`), results cached in a `geocode_cache` table, search on submit only (no autocomplete). Map results to `{ label, lat, lng }`. **Check:** tests for the throttle, a cache hit that skips `fetch`, and result mapping.
-- [x] **L3** IP fallback: `GET /api/locate-ip` using `@maxmind/geoip2-node` and a GeoLite2 City DB whose path comes from `.env`. It uses the real client IP (Fastify `trustProxy` configurable from `.env`) and returns `{ available: false }` when the DB file is missing, without crashing at startup. Add a `scripts/update-geolite2` script driven by `MAXMIND_LICENSE_KEY` and document the setup in the README. **Check:** a test for the missing-DB path and one with the reader mocked.
-- [x] **L4** The Search Area screen: search a place or postcode on submit and pick from the results; "Use my location" through browser geolocation with a finite timeout, falling back to the IP lookup with an "Is this right?" confirmation, because IP location is coarse; a radius picker; save, and restore the saved area on the next visit; OpenStreetMap attribution. **Check:** component tests with mocked geolocation and `fetch` covering search, geolocation success, and fallback. E2e tests (with Nominatim mocked via Playwright route interception or a test stub, and browser geolocation granted/denied via Playwright permissions) cover: postcode search and pick, use-my-location, the IP fallback confirmation, and the saved area restoring after reload.
+- [x] **X1** Search:
+  - Search Area radii become 1, 2, 5, 10 km (default 5);
+  - `POST /api/search` replaces `PUT /api/search-area`: it saves the area, sets `onboarded_at` if unset, fetches starred Segments, starts a crawl (J4), drains a first burst (about 20 runs + 60 Segment details, 8 in parallel, within the budget), and returns the results payload;
+  - `GET /api/search-area` is unchanged.
+  - **Check:** seam-3 tests with a fake Strava: the first call returns stored Segments immediately plus progress; the burst respects the budget; an invalid radius is rejected.
+- [x] **X2** Results:
+  - `GET /api/results` loads the area's Known Segments with SQL (bbox index + exact distance, zero Strava calls), the Benchmarks and gender, and calls `rank`;
+  - it returns the three lists (rows carry name, distance, avg grade, km from centre, athletes, record, Predicted Time + confidence reason, PB, Held, Implausible, record age), counts, crawl progress and `budgetStatus`;
+  - while work is pending, it drains for up to about 2 s first.
+  - `GET /api/debug/segments` (outside production only) returns the same pipeline's per-Segment exclusion reasons.
+  - **Check:** seam-3 tests: lists match `rank` for a seeded area; a poll advances progress; "continues tomorrow" appears at the cap; the debug output agrees with the results for every Segment; one Runner never sees another's PBs.
+- [x] **X3** Mapped Areas: `GET/POST/DELETE /api/mapped-areas` (label, centre, radius 10/25/50, default 25), with a mapping-priority crawl and progress in the list. Delete stops its pending jobs.
+  - **Check:** seam-3 tests for create, list with progress, delete cancelling jobs, and scoping to the signed-in Runner.
+
+### UI (spec: UI; decided prototypes on branches `prototype/results-list` and `prototype/onboarding`, variant A)
+
+- [x] **U1** The Fitness Profile page, rebuilt on N2:
+  - the "Estimated from …" sentence;
+  - the 13-row table with editable times, pinned state (orange, "📌 yours · generated X · use generated") and soft flag;
+  - **Update all from this** on the row just edited, with its confirmation;
+  - **Reset all to generated** when anything is pinned;
+  - **Regenerate from Strava**;
+  - **Resync my runs**, with its explainer and last-resynced time;
+  - the empty-profile message.
+  - **Check:** component tests plus e2e: edit → pinned → reload persists; update-all; reset; use generated.
+- [x] **U2** The suggestion banner:
+  - a slim banner under the nav on every signed-in page while `/api/me` reports a suggestion;
+  - **Apply** in place, **Review** (opens the Fitness Profile with suggested values beside current ones), **×** dismiss.
+  - **Check:** component tests plus e2e for apply and dismiss (seed a suggestion through a test-only route or DB helper).
+- [x] **U3** The Search Area page:
+  - radii 1/2/5/10 (10 marked "slower, uses more of the daily budget");
+  - saving calls `POST /api/search` and goes to Results;
+  - the IP fallback is hidden when the server reports it unavailable, as it always is in production (config);
+  - a "Map a whole area in the background" section: place + radius 10/25/50 (default 25), and a list of Mapped Areas with progress bars and remove buttons.
+  - **Check:** component tests plus e2e for search → results, and start/remove a Mapped Area.
+- [x] **U4** The Results page, replacing the prototype and the placeholder:
+  - a toolbar with a radius dropdown (re-runs the search) and the place linking to the Search Area page;
+  - the summary line "N of M Known Segments are Achievable";
+  - Your targets / Nearest misses / Suspicious records (muted) with counts;
+  - rows as in the spec (👑, "⚠ Suspicious", `~` with the reason on hover, "—" for no PB, record age when > 30 days);
+  - a "refining: N of ~M Segments checked" line polling every 5 s while pending, stopping when done;
+  - "continues tomorrow" at the cap;
+  - an empty state suggesting a bigger radius;
+  - with < 2 Benchmarks, a prompt linking to the Fitness Profile.
+  - Delete the results prototype files and route.
+  - **Check:** component tests over fixture payloads (including a slow Runner with Nearest misses) plus e2e with a seeded area.
+- [x] **U5** The first-run wizard and routing:
+  - a three-step wizard with a step bar;
+  - step 1: reading runs, the sentence, the table, and a KOM/QOM question only when `sex` is unset; continue is disabled until ≥ 2 Benchmarks exist;
+  - step 2: the Search Area form + **Find my targets**;
+  - step 3: crawl progress "N of ~M runs checked · K Segments found. You can leave; this keeps going.", targets appearing live, and **See all results**;
+  - after login, Runners who aren't onboarded go to the wizard (resuming there if they left during step 1), and others land on Results.
+  - Delete the onboarding prototype files and route, and the prototype switcher if it's then unused.
+  - **Check:** component tests plus e2e: a new Runner walks all three steps; leaving at step 1 resumes; the KOM/QOM question appears only without `sex`; an onboarded Runner lands on Results.
+
+### Production build (spec: Hosting and deployment). Code only; no cloud resources
+
+- [x] **H1** One production image:
+  - the API serves the built web app with `@fastify/static` (SPA fallback for client routes, `/api` and `/internal` excluded);
+  - production config requires the spec's secrets, and disables test, live and debug routes and the IP fallback;
+  - a multi-stage `Dockerfile` (the build stage runs `pnpm build`; the runtime is Node 22 slim) that listens on `$PORT`.
+  - **Check:** `docker build` succeeds; running the image against the local Postgres with production env serves the web app at `/`, `/api/health` is ok, and `/api/test/login` is 404.
+- [x] **H2** Deploy workflow and docs:
+  - a GitHub Actions workflow on push to `main`: install, typecheck/lint/test, `drizzle-kit migrate` against `DATABASE_URL`, build and push the image to Artifact Registry in `northamerica-northeast1`, and `gcloud run deploy` (max 1 instance, min 0, concurrency 80, secrets from Secret Manager), authenticating with Workload Identity Federation;
+  - `docs/deploy.md` records the one-time human setup (below) as an exact checklist, including the Scheduler job and the $1 budget alert.
+  - **Check:** the workflow YAML parses (use `actionlint` if available, otherwise a YAML parse) and references only secrets and variables listed in `docs/deploy.md`.
 
 ### Wrap-up
 
-- [x] **W1** A full pass: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`, plus one final click-through of every screen with the Playwright MCP browser. Run the README instructions from a clean `docker compose down -v` to make sure they work, and add a "Manual checks" section to the README (real Strava login click-through, the geolocation prompt, Disconnect). **Check:** all commands succeed from a clean database.
+- [x] **W1** Full pass:
+  - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`;
+  - add a live smoke test to `pnpm test:e2e:live`: a real 1 km search on the test account returns ranked rows, capped at **30 Strava reads** (assert it through the usage counters);
+  - a final MCP click-through of every page as the real Runner (`pnpm dev:live`);
+  - update the README (new env vars, the tick in dev, the debug endpoint).
+  - **Check:** everything passes, and the live smoke test stays within its read cap.
 
-### Live Strava testing
+## Human setup (not loop tasks)
 
-The tests so far mock Strava. These tasks add opt-in tests against the Runner's **real Strava account**, using a real OAuth refresh token rather than a password. The only human step is approving the app on Strava's consent screen, which has already been done once; the resulting tokens are in `.env` (`STRAVA_REFRESH_TOKEN`, `STRAVA_ACCESS_TOKEN`, `STRAVA_TOKEN_EXPIRES_AT`).
+The loop never does these, because they need your accounts. Do them after H2, following `docs/deploy.md`:
 
-Rules for every task in this section:
-
-- **Never** use or store a Strava password, and never automate Strava's own login or consent pages.
-- **Never** print, log, snapshot or commit a token. Test output may show athlete ids and first names, never tokens.
-- **Never** call Strava's deauthorize, or myKOM's Disconnect, with the live token: it revokes access and the Runner would have to re-consent. Disconnect stays covered by the mocked tests only.
-- **Be sparing with the API.** The app's read limit is 100 requests per 15 minutes and 1,000 per day, shared by everything. A live run should make at most about 10 Strava calls. Live tests are **not** part of `pnpm test` or `pnpm test:e2e`; they run through their own scripts.
-- If no live token is available, live tests **skip** with a clear message rather than fail, so the normal suites stay green on any machine.
-
-- [x] **R1** A live token store: a git-ignored `.strava-live-token.json` at the repo root (add it to `.gitignore`), seeded from `.env`'s `STRAVA_REFRESH_TOKEN`, `STRAVA_ACCESS_TOKEN` and `STRAVA_TOKEN_EXPIRES_AT` the first time. Strava can return a **new refresh token** on every refresh, so after each refresh the store writes the latest token set back to the file (atomically: write a temp file, then rename). Build it on the existing Strava client (`apps/api/src/strava/client.ts`) and its token-store interface, not a second HTTP path. Also add `pnpm strava:authorize`, a script for when the live token is lost or revoked: it prints the authorize URL (scopes as in A2, redirect `http://localhost/exchange_token`), reads the `code` the Runner pastes back, exchanges it, and writes the token file. **Check:** unit tests with mocked `fetch`: seeding from env, reading the file in preference to env, persisting a rotated refresh token, the atomic write, and no token appearing in any thrown error message.
-- [x] **R2** `pnpm test:live`: a Vitest run over `*.live.test.ts` files only (exclude that pattern from `pnpm test`), using the R1 store and the real Strava API. Tests: (1) getting a valid access token works, refreshing if needed, and the rotated token is persisted; (2) the real `GET /athlete` response contains the fields myKOM relies on (`id`, `firstname`, `sex`, `profile`, and the subscriber flag), and mapping it through the same code path as the OAuth callback produces a valid Runner (in a transaction that's rolled back, or a throwaway DB schema, so the dev DB isn't touched); (3) the scopes the token was granted include everything in `STRAVA_SCOPES`. Log the `x-ratelimit-usage` / `x-readratelimit-usage` headers after the run. Skip cleanly when there's no token. **Check:** `pnpm test:live` passes against the real account using no more than ~5 Strava calls, and `pnpm test` still excludes it.
-- [x] **R3** A real-account e2e session: a new server mode `E2E_LIVE=1` (only outside production, like `testMode`) that uses the **real** Strava fetch but makes `deauthorize` throw a clear "blocked in live test mode" error instead of calling Strava. Add a test-only route `POST /api/test/login-live` (registered only in `E2E_LIVE=1` mode) that takes **no token from the caller**: the server loads the R1 store itself, gets a valid access token, fetches the real athlete, upserts the Runner through the OAuth callback's code path, and starts the session. Add a separate Playwright project or config for live tests (`pnpm test:e2e:live`, excluded from `pnpm test:e2e`) whose servers start with `E2E_LIVE=1`. Tests: sign in live, and the header shows the real Runner's first name and avatar; the Fitness Profile and Search Area screens load and save for the real Runner; Log out works. The Disconnect button must not be clicked; add a test asserting that `POST /api/auth/disconnect` in live mode fails with the blocked error and leaves the token file untouched. **Check:** `pnpm test:e2e:live` passes against the real account, and the UI verification convention is followed (click through signed in as the real Runner with the Playwright MCP browser: start the servers with `pnpm dev:live` in the background, which sets `E2E_LIVE=1` and the live-test database, then sign in through the live route).
-- [x] **R4** Wrap-up: README section "Live Strava tests" (what they cover, `pnpm strava:authorize` for re-consent, the no-Disconnect rule, rate limits), then a full pass: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm test:live && pnpm test:e2e:live && pnpm build`. **Check:** everything passes, and `git status` shows no token file staged or committed.
+- **Strava:** the self-service upgrade to 10 athletes; add the `*.run.app` domain as a callback domain once it exists.
+- **GCP:**
+  - create the project and turn on the budget alert at $1;
+  - set up Artifact Registry and Cloud Run (Montréal);
+  - add the Secret Manager secrets (`DATABASE_URL`, `SESSION_SECRET`, `STRAVA_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`);
+  - create the Scheduler service account and the 5-minute Cloud Scheduler job with an OIDC token;
+  - connect GitHub through Workload Identity Federation.
+- **Supabase:** a Free project in `ca-central-1`, and the IPv4 session-pooler URL for `DATABASE_URL`.
+- **GitHub:** the WIF variables and the `DATABASE_URL` secret.

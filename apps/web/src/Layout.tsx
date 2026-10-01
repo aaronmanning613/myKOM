@@ -1,6 +1,9 @@
-import { Link, NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useMatch } from 'react-router';
 import { AccountMenu } from './auth/AccountMenu';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { SuggestionBanner } from './fitness-profile/SuggestionBanner';
+import { SuggestionProvider } from './fitness-profile/suggestion';
+import { WIZARD_PATH } from './pages/WizardPage';
 
 const navItems = [
   { to: '/fitness-profile', label: 'Fitness Profile' },
@@ -17,6 +20,9 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 function Header() {
   const auth = useAuth();
+  // The wizard has its own step bar, and a first profile is applied, not suggested.
+  const inWizard = useMatch(WIZARD_PATH) !== null;
+  const showNav = auth.status === 'signed-in' && !inWizard;
 
   return (
     <header className="border-b border-gray-200">
@@ -32,7 +38,7 @@ function Header() {
             </NavLink>
           )}
         </div>
-        {auth.status === 'signed-in' && (
+        {showNav && (
           <nav aria-label="Main">
             <ul className="-mx-3 flex flex-wrap gap-1">
               {navItems.map((item) => (
@@ -46,6 +52,7 @@ function Header() {
           </nav>
         )}
       </div>
+      {showNav && <SuggestionBanner />}
     </header>
   );
 }
@@ -53,12 +60,14 @@ function Header() {
 export function Layout() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-white text-gray-900">
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 py-6">
-          <Outlet />
-        </main>
-      </div>
+      <SuggestionProvider>
+        <div className="min-h-screen bg-white text-gray-900">
+          <Header />
+          <main className="mx-auto max-w-3xl px-4 py-6">
+            <Outlet />
+          </main>
+        </div>
+      </SuggestionProvider>
     </AuthProvider>
   );
 }

@@ -1,0 +1,32 @@
+[
+  {
+    "id": 2309643,
+    "name": "Ave Revolution Climb",
+    "activity_type": "Run",
+    "distance": 847.17,
+    "average_grade": 5.1,
+    "maximum_grade": 20.2,
+    "elevation_high": 54.2,
+    "elevation_low": 10.8,
+    "start_latlng": [20.858193710446358, -105.45452783815563],
+    "end_latlng": [20.86349207907915, -105.44970522634685],
+    "hazardous": false,
+    "starred": true,
+    "starred_date": "2024-02-20T21:02:59Z"
+  },
+  {
+    "id": 2667989,
+    "name": "Ejército Nacional 104 Climb",
+    "activity_type": "Run",
+    "distance": 662.637,
+    "average_grade": 8.9,
+    "maximum_grade": 30.2,
+    "elevation_high": 2196.6,
+    "elevation_low": 2137.6,
+    "start_latlng": [16.7343144, -92.6147059],
+    "end_latlng": [16.7378026, -92.6140309],
+    "hazardous": false,
+    "starred": true,
+    "starred_date": "2024-03-05T14:39:04Z"
+  }
+]

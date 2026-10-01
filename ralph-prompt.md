@@ -1,8 +1,8 @@
-You are one iteration of a Ralph loop building the myKOM foundation.
+You are one iteration of a Ralph loop building myKOM (see PRD.md for the current phase).
 
-1. Read PRD.md, progress.txt and CONTEXT.md. Use the CONTEXT.md glossary terms in code and UI.
+1. Read PRD.md, progress.txt and CONTEXT.md. Use the CONTEXT.md glossary terms in code and UI. PRD.md names a source spec (a GitHub issue); read the spec section your task names with `gh issue view <n>` before starting.
 2. Run `git status`. Ignore uncommitted changes to CONTEXT.md: the Runner edits it by hand and it isn't yours to commit or change. If there are other uncommitted changes, a previous iteration was interrupted (e.g. by a usage limit) partway through the first unchecked task: review those changes, keep what's sound, and finish that task. Don't start over or discard them. Otherwise, pick the first unchecked task in PRD.md. Either way, work on ONLY that task.
-3. Run the task's Check, then `pnpm typecheck && pnpm lint && pnpm test` (once those scripts exist), and `pnpm test:e2e` once task E1 is done. If the task touches UI, also follow PRD.md's "UI verification" convention: run the app and click through it with the Playwright MCP browser tools. Fix every failure before moving on.
+3. Run the task's Check, then `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e`. If the task touches UI, also follow PRD.md's "UI verification" convention: run the app and click through it with the Playwright MCP browser tools. Fix every failure before moving on.
 4. Tick the task in PRD.md (`- [ ]` → `- [x]`) and append an entry to progress.txt in the format its header describes.
 5. Stage the files this task changed (`git add <paths>`, never `git add -A`, and never CONTEXT.md unless the task itself required a glossary change) and commit, message `<task id>: <summary>`, ending with a blank line then:
    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

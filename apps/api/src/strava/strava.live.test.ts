@@ -5,12 +5,13 @@
 // lines name athlete ids, first names, paths and rate-limit usage, nothing else.
 // Never call deauthorize here: it would revoke the live token.
 
+import { parseXoms } from '@mykom/shared';
 import { TransactionRollbackError, eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { upsertRunnerFromStrava } from '../auth/runners.js';
 import { runners, stravaTokens, type Runner } from '../db/schema.js';
 import { loadRootEnvFile, readEnv } from '../env.js';
-import { useTestDatabase } from '../test/app.js';
+import { testTokenCipher, useTestDatabase } from '../test/app.js';
 import {
   REFRESH_WINDOW_MS,
   STRAVA_ATHLETE_URL,
@@ -31,6 +32,7 @@ const RATE_LIMIT_HEADERS = [
 ];
 /** The live store ignores Runner ids. */
 const LIVE_RUNNER = 0;
+const LIVE_SEGMENT_ID = 8793341;
 
 loadRootEnvFile();
 const { stravaClientId, stravaClientSecret } = readEnv();
@@ -158,7 +160,12 @@ describe.skipIf(skipReason !== undefined)('live Strava account', () => {
     let savedScopes: string[] | undefined;
     await database.db
       .transaction(async (tx) => {
-        const runnerId = await upsertRunnerFromStrava(tx, { ...tokens!, athlete }, grantedScopes);
+        const runnerId = await upsertRunnerFromStrava(
+          tx,
+          testTokenCipher,
+          { ...tokens!, athlete },
+          grantedScopes,
+        );
         [runner] = await tx.select().from(runners).where(eq(runners.id, runnerId));
         const [tokenRow] = await tx
           .select({ grantedScopes: stravaTokens.grantedScopes })
@@ -186,6 +193,34 @@ describe.skipIf(skipReason !== undefined)('live Strava account', () => {
       .from(runners)
       .where(eq(runners.stravaAthleteId, athlete.id));
     expect(left, 'the rolled-back Runner is not in the database').toEqual([]);
+  });
+
+  it('listActivities and getSegment map real responses (2 reads)', async () => {
+    const client = liveClient();
+    const activities = await client.listActivities(LIVE_RUNNER, { page: 1 });
+    console.log(`Live activity list: ${activities.data.length} on page 1`);
+    expect(activities.rateLimits.read, 'read rate-limit headers were parsed').not.toBeNull();
+    expect(activities.data.length).toBeGreaterThan(0);
+    for (const activity of activities.data) {
+      expect(Number.isSafeInteger(activity.id)).toBe(true);
+      expect(Number.isNaN(Date.parse(activity.startDate))).toBe(false);
+      expect(activity.movingTime).toBeGreaterThanOrEqual(0);
+      expect(activity.bbox === null).toBe(activity.summaryPolyline === null);
+    }
+    const gpsRun = activities.data.find((a) => a.sportType === 'Run' && a.bbox);
+    expect(gpsRun, 'page 1 has a run with GPS').toBeDefined();
+    expect(gpsRun!.bbox!.minLat).toBeLessThanOrEqual(gpsRun!.bbox!.maxLat);
+
+    // A public Segment the live Runner has run (the getSegment fixture).
+    const segment = await client.getSegment(LIVE_RUNNER, LIVE_SEGMENT_ID);
+    console.log(`Live Segment: ${segment.data.id}, xoms ${JSON.stringify(segment.data.xoms)}`);
+    expect(segment.rateLimits.read).not.toBeNull();
+    expect(segment.data).toMatchObject({ id: LIVE_SEGMENT_ID, activityType: 'Run' });
+    expect(segment.data.athleteCount).toBeGreaterThan(0);
+    expect(segment.data.polyline).toBeTypeOf('string');
+    for (const raw of [segment.data.xoms?.kom, segment.data.xoms?.qom]) {
+      expect(parseXoms(raw ?? '').status, `the xoms string "${raw}" parses`).toBe('ok');
+    }
   });
 
   it('the live token was granted every scope myKOM asks for', async (context) => {

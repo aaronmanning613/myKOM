@@ -2,15 +2,18 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { runners, stravaTokens, type Runner } from '../db/schema.js';
 import type { StravaCodeExchange } from '../strava/client.js';
+import type { TokenCipher } from '../strava/token-cipher.js';
+import { encryptTokens } from '../strava/token-store.js';
 
 /**
- * Creates or updates the Runner for a Strava athlete, and saves their tokens and the scopes
- * they actually granted. Returns the Runner's id.
+ * Creates or updates the Runner for a Strava athlete, and saves their tokens (encrypted with
+ * `tokenCipher`) and the scopes they actually granted. Returns the Runner's id.
  */
 export async function upsertRunnerFromStrava(
   // Also accepts an open transaction, so the live tests can roll the upsert back.
   db: Pick<Database['db'], 'transaction'>,
-  { athlete, accessToken, refreshToken, expiresAt }: StravaCodeExchange,
+  tokenCipher: TokenCipher,
+  { athlete, ...tokenSet }: StravaCodeExchange,
   grantedScopes: string[],
 ): Promise<number> {
   return db.transaction(async (tx) => {
@@ -28,7 +31,7 @@ export async function upsertRunnerFromStrava(
         set: { ...profile, updatedAt: new Date() },
       })
       .returning({ id: runners.id });
-    const tokens = { accessToken, refreshToken, expiresAt, grantedScopes };
+    const tokens = { ...encryptTokens(tokenCipher, tokenSet), grantedScopes };
     await tx
       .insert(stravaTokens)
       .values({ runnerId: runner!.id, ...tokens })

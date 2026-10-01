@@ -1,12 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-/** Mirrors the API's `GET /api/me` response: the signed-in Runner. */
-export type Me = {
-  id: number;
-  firstName: string;
-  avatarUrl: string | null;
-};
+import type { Me } from '@mykom/shared';
+
+export type { Me };
 
 export type AuthState =
   | { status: 'loading' }
@@ -19,6 +16,8 @@ export type Auth = AuthState & {
   logOut(): Promise<void>;
   /** Revokes myKOM's Strava access and deletes all of the Runner's data. */
   disconnect(): Promise<void>;
+  /** Records a change the Runner just made (e.g. finishing the wizard) without refetching. */
+  updateMe(patch: Partial<Me>): void;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -73,7 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'signed-out', disconnected: true });
   }, []);
 
-  const auth = useMemo(() => ({ ...state, logOut, disconnect }), [state, logOut, disconnect]);
+  const updateMe = useCallback((patch: Partial<Me>) => {
+    setState((s) => (s.status === 'signed-in' ? { ...s, me: { ...s.me, ...patch } } : s));
+  }, []);
+
+  const auth = useMemo(
+    () => ({ ...state, logOut, disconnect, updateMe }),
+    [state, logOut, disconnect, updateMe],
+  );
   return <AuthContext value={auth}>{children}</AuthContext>;
 }
 

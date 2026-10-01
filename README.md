@@ -28,7 +28,7 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
    For the IP-location fallback behind "Use my location" (optional), see [IP location](#ip-location) below.
 
-   The other variables have working defaults for local development. To sign in with Strava, open the web app at `http://localhost:5173` (not `127.0.0.1`), since that's the callback domain Strava accepts.
+   The other variables have working defaults for local development. `SESSION_SECRET` and `TOKEN_ENCRYPTION_KEY` (which encrypts stored Strava tokens) fall back to development-only values with a warning; production requires both. `TICK_OIDC_AUDIENCE` and `TICK_SERVICE_ACCOUNT` are only for production's Cloud Scheduler (see [Background work](#background-work)). To sign in with Strava, open the web app at `http://localhost:5173` (not `127.0.0.1`), since that's the callback domain Strava accepts.
 
 3. Start Postgres (Postgres 16 on host port 5433, data kept in a named volume):
 
@@ -71,6 +71,21 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
 
 `packages/shared` holds code both apps use. In development, tests and typechecks it is used straight from its TypeScript source; `pnpm build` also compiles it to `dist/`, which the built API loads through the `mykom-dist` export condition (`pnpm --dir apps/api start`).
 
+### Background work
+
+Strava reads that don't need to happen during a request (run details, Segment details, Mapped Areas and freshness re-fetches) go through a job queue in Postgres (`strava_jobs`), kept within Strava's rate limits by the budget in `strava_read_usage`. A search spends a first burst on its own jobs straight away, and `GET /api/results` drains for up to about 2 s while work is pending. Everything else runs on the **tick**, which drains the queue for about 20 s and, once a day, does housekeeping.
+
+- In production, Cloud Scheduler calls `POST /internal/tick` every 5 minutes with a Google OIDC token. The route checks the token against `TICK_OIDC_AUDIENCE` and `TICK_SERVICE_ACCOUNT` and refuses every call while they're unset. See [docs/deploy.md](docs/deploy.md).
+- Outside production, the API ticks itself every 5 minutes (logged as `Tick`), so `pnpm dev` keeps crawling on its own. In test mode, `POST /internal/tick` also works without a token.
+
+### Debugging results
+
+Outside production, `GET /api/debug/segments` (signed in) lists every Known Segment in the Search Area with the same pipeline as `GET /api/results`: its distance from the centre, the list it landed in, or why it's in none (the exclusion reason, plus the record status when there's no Target Record). Open it in the browser while signed in, e.g. http://localhost:5173/api/debug/segments. It makes no Strava calls.
+
+### Deploying
+
+Pushes to `main` deploy to Cloud Run through `.github/workflows/deploy.yml`. The one-time setup (GCP, Supabase, Strava and GitHub) is in [docs/deploy.md](docs/deploy.md). The production image (`Dockerfile`) serves the built web app from the API.
+
 ### IP location
 
 When the browser can't give the Runner's location, the Search Area screen falls back to `GET /api/locate-ip`, which looks up the client's IP address in MaxMind's free GeoLite2 City database. The database isn't in the repo; without it the API still starts and the lookup replies `{ "available": false, "reason": "no_database" }`. To install it:
@@ -104,8 +119,8 @@ To stop Postgres, run `docker compose down` (add `-v` to also delete the data).
 Every test above mocks Strava. These opt-in suites run against the Runner's **real Strava account** instead, using a real OAuth token rather than a password. They are not part of `pnpm test` or `pnpm test:e2e`, and they skip with a message (rather than fail) when there's no live token.
 
 - `pnpm test:live` (Vitest, `apps/api/src/**/*.live.test.ts`): getting a valid access token, refreshing it and saving the rotated token; that the real `GET /athlete` response has the fields myKOM relies on and maps to a valid Runner (inside a rolled-back transaction on `mykom_test`); and that the granted scopes include everything myKOM asks for. It makes about 2 Strava calls and logs the rate-limit usage at the end.
-- `pnpm test:e2e:live` (Playwright, `e2e/live/`): servers start in **live test mode** (`E2E_LIVE=1`, never in production) on ports 3201/5274 with their own database, `mykom_e2e_live` (override with `E2E_LIVE_DATABASE_URL`). A test-only route, `POST /api/test/login-live`, takes no token from the browser: the server reads the token file, fetches the real athlete and signs in as them. The tests check the header shows the real first name and avatar, that Fitness Profile and Search Area load and save, and Log out. It makes about 5 Strava calls.
-- `pnpm dev:live` runs the dev servers (ports 3001/5173) in live test mode against `mykom_e2e_live`, for clicking through as the real Runner: open http://localhost:5173 and run `fetch('/api/test/login-live', { method: 'POST' })` in the console, then reload.
+- `pnpm test:e2e:live` (Playwright, `e2e/live/`): servers start in **live test mode** (`E2E_LIVE=1`, never in production) on ports 3201/5274 with their own database, `mykom_e2e_live` (override with `E2E_LIVE_DATABASE_URL`). A test-only route, `POST /api/test/login-live`, takes no token from the browser: the server reads the token file, fetches the real athlete and signs in as them (the first time, it also runs a real first sign-in's sync: every run, the generated Fitness Profile and the starred Segments). The tests check the header shows the real first name and avatar, that Fitness Profile and Search Area load and save, and Log out. A smoke test then runs a real 1 km search around the start of the Runner's latest run and checks it returns ranked rows within 30 Strava reads, counted by the app's own usage counters (`GET /api/test/live-reads`). To keep within that, it first raises the Runner's daily read counter so only 25 background reads are left today (`POST /api/test/live-read-allowance`). The first run on a fresh `mykom_e2e_live` reads the whole activity list (about a minute, and one read per 200 activities); after that the suite makes about 10 Strava calls plus up to 30 for the search.
+- `pnpm dev:live` runs the dev servers (ports 3001/5173) in live test mode against `mykom_e2e_live`, for clicking through as the real Runner: open http://localhost:5173 and run `fetch('/api/test/login-live', { method: 'POST' })` in the console, then reload. It shares `mykom_e2e_live` with `pnpm test:e2e:live`, so after the smoke test has run, the real Runner's background work there waits until the next UTC day (the results page says it continues tomorrow).
 
 **The token.** The live token lives in `.strava-live-token.json` at the repo root (git-ignored, mode 0600; never commit it). The first time, it's seeded from `STRAVA_REFRESH_TOKEN`, `STRAVA_ACCESS_TOKEN` and `STRAVA_TOKEN_EXPIRES_AT` in `.env`. Strava can hand out a new refresh token on every refresh, so the file always holds the latest one and is preferred over `.env`. If the token is lost or revoked, run `pnpm strava:authorize`: it prints Strava's authorize URL; open it, approve, and paste back the URL you're redirected to (`http://localhost/exchange_token?...`, which won't load, which is fine). The script exchanges the code and writes the token file, printing only your athlete id, first name and granted scopes.
 

@@ -32,11 +32,13 @@ test.describe('signed out', () => {
 });
 
 test.describe('signed in', () => {
-  test('the header shows the Runner, and the login page sends them home', async ({ page }) => {
+  test('the header shows the Runner, and the login page sends a new one to the wizard', async ({
+    page,
+  }) => {
     await signIn(page, 'Sifan');
     await page.goto('/login');
 
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/welcome');
     const header = page.getByRole('banner');
     await expect(header.getByText('Sifan')).toBeVisible();
     await expect(header.getByRole('button', { name: 'Log out' })).toBeVisible();

@@ -9,30 +9,70 @@ import type { NominatimClient } from './geocode/nominatim.js';
 import { geocodeRoutes } from './geocode/routes.js';
 import type { IpLocator } from './locate-ip/locator.js';
 import { locateIpRoutes } from './locate-ip/routes.js';
+import { endSession, sessionRunnerId } from './auth/session.js';
+import { tickRoutes, type TickRoutesOptions } from './internal/tick-routes.js';
+import type { JobQueue } from './jobs/queue.js';
+import { mappedAreasRoutes } from './mapped-areas/routes.js';
+import { preferencesRoutes } from './preferences/routes.js';
+import { resultsRoutes } from './results/routes.js';
 import { searchAreaRoutes } from './search-area/routes.js';
-import type { StravaClient } from './strava/client.js';
+import { StravaError, StravaRevokedError, type StravaClient } from './strava/client.js';
 import type { LiveTokenStore } from './strava/live-token-store.js';
+import type { TokenCipher } from './strava/token-cipher.js';
+import { visitCheck } from './sync/new-runs.js';
+import { syncRoutes } from './sync/routes.js';
+import { serveWebApp } from './web/static-routes.js';
 
 export type BuildAppOptions = {
   logger?: FastifyServerOptions['logger'];
   database: Pick<Database, 'db' | 'isReachable'>;
+  /**
+   * Its `onRevoked` should delete the Runner (see `deleteRunner`); the app then ends the
+   * session of any request that hit the revocation.
+   */
   strava: StravaClient;
+  /** Encrypts Strava tokens at rest. `strava`'s token store must use the same one. */
+  tokenCipher: TokenCipher;
   /** Backs `GET /api/geocode`; without it, place search replies 503. */
   nominatim?: NominatimClient;
   /** Backs `GET /api/locate-ip`; without it, the lookup replies `{ available: false }`. */
   ipLocator?: IpLocator;
+  /**
+   * Offers the IP lookup as the "Use my location" fallback (default on). Never on in
+   * production, where `GET /api/locate-ip` replies `{ available: false, reason: 'disabled' }`.
+   */
+  ipFallback?: boolean;
   /** Fastify's `trustProxy`: which proxies' X-Forwarded-For to believe for the client IP. */
   trustProxy?: FastifyServerOptions['trustProxy'];
   /** Signs the session and OAuth state cookies. */
   sessionSecret: string;
   /** Registers test-only routes such as `POST /api/test/login`. Never on in production. */
   testRoutes?: boolean;
+  /** Registers `GET /api/debug/segments`. Never on in production. */
+  debugRoutes?: boolean;
   /**
    * Live mode only: registers `POST /api/test/login-live`, which signs in the real Runner from
    * this store. `strava` must use the same store. Never on in production.
    */
   liveTokenStore?: LiveTokenStore;
+  /** Registers `POST /internal/tick`: the tick, and how its caller is checked. */
+  tick?: TickRoutesOptions;
+  /** The Strava job queue that searches drain (the same one the tick drains). */
+  queue: JobQueue;
+  /**
+   * The built web app's directory, served at `/` with a fallback to index.html for client
+   * routes (production). Unset, only the API is served; in development Vite serves the web app.
+   */
+  webRoot?: string;
 };
+
+const VISIT_CHECK_SKIPS = [
+  '/api/health',
+  '/api/auth/',
+  '/api/test/',
+  '/api/fitness-profile/regenerate',
+  '/api/activities/resync',
+];
 
 export type HealthStatus = {
   ok: boolean;
@@ -43,15 +83,37 @@ export function buildApp({
   logger = false,
   database,
   strava,
+  tokenCipher,
   nominatim,
   ipLocator,
+  ipFallback = true,
   trustProxy = false,
   sessionSecret,
   testRoutes: enableTestRoutes = false,
+  debugRoutes = false,
   liveTokenStore,
+  tick,
+  queue,
+  webRoot,
 }: BuildAppOptions) {
   const app = Fastify({ logger, trustProxy });
   app.register(fastifyCookie, { secret: sessionSecret });
+
+  app.setErrorHandler((error, request, reply) => {
+    // The Strava client has already deleted a revoked Runner's data, so sign them out like
+    // `requireRunner` does for a Runner who no longer exists.
+    if (error instanceof StravaRevokedError) {
+      request.log.warn({ runnerId: error.runnerId }, 'Strava access revoked; Runner deleted');
+      endSession(request, reply);
+      return reply.code(401).send({ error: 'signed_out' });
+    }
+    // Otherwise Fastify would reply with Strava's own status, and a 401 would look like a sign-out.
+    if (error instanceof StravaError) {
+      request.log.error(error, 'Strava request failed');
+      return reply.code(502).send({ error: 'strava' });
+    }
+    throw error;
+  });
 
   app.get('/api/health', async (_request, reply): Promise<HealthStatus> => {
     const dbUp = await database.isReachable();
@@ -59,13 +121,39 @@ export function buildApp({
     return { ok: dbUp, db: dbUp ? 'up' : 'down' };
   });
 
-  app.register(authRoutes, { db: database.db, strava });
-  app.register(fitnessProfileRoutes, { db: database.db });
-  app.register(searchAreaRoutes, { db: database.db });
+  // The visit check: the first authenticated request of a visit picks up new runs. Routes that
+  // read the activity list themselves, and sign-in/out, are left out.
+  app.addHook('preHandler', async (request) => {
+    const path = request.url.split('?')[0]!;
+    if (!path.startsWith('/api/') || VISIT_CHECK_SKIPS.some((skip) => path.startsWith(skip))) {
+      return;
+    }
+    const runnerId = sessionRunnerId(request);
+    if (runnerId === undefined) return;
+    try {
+      await visitCheck({ db: database.db, strava }, runnerId);
+    } catch (err) {
+      // Revoked: the error handler signs them out. Otherwise the request goes on without it.
+      if (err instanceof StravaRevokedError) throw err;
+      request.log.error(err, 'New-run check failed');
+    }
+  });
+
+  app.register(authRoutes, { db: database.db, strava, tokenCipher });
+  app.register(fitnessProfileRoutes, { db: database.db, strava });
+  app.register(syncRoutes, { db: database.db, strava });
+  app.register(preferencesRoutes, { db: database.db });
+  app.register(searchAreaRoutes, { db: database.db, strava, queue });
+  app.register(resultsRoutes, { db: database.db, strava, queue, debug: debugRoutes });
+  app.register(mappedAreasRoutes, { db: database.db });
   app.register(geocodeRoutes, { db: database.db, nominatim });
-  app.register(locateIpRoutes, { db: database.db, ipLocator });
-  if (enableTestRoutes) app.register(testRoutes, { db: database.db });
-  if (liveTokenStore) app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore });
+  app.register(locateIpRoutes, { db: database.db, ipLocator, enabled: ipFallback });
+  if (tick) app.register(tickRoutes, tick);
+  if (enableTestRoutes) app.register(testRoutes, { db: database.db, tokenCipher });
+  if (liveTokenStore) {
+    app.register(liveTestRoutes, { db: database.db, strava, liveTokenStore, tokenCipher });
+  }
+  if (webRoot) serveWebApp(app, webRoot);
 
   return app;
 }

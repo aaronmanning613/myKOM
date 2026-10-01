@@ -22,6 +22,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // The first sign-in on a fresh database reads the whole activity list (see sign-in-live.ts).
+  timeout: 180_000,
   forbidOnly: !!process.env.CI,
   reporter: 'list',
   use: {

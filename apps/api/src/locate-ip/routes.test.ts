@@ -117,3 +117,21 @@ describe('GET /api/locate-ip without the GeoLite2 database', () => {
     expect(res.json<LocateIpResponse>()).toEqual({ available: false, reason: 'no_database' });
   });
 });
+
+describe('GET /api/locate-ip with the fallback off (as in production)', () => {
+  const locator = leedsLocator();
+  const app = testApp({ ipLocator: locator, ipFallback: false });
+
+  it('is unavailable (disabled), without a lookup', async () => {
+    const cookies = await signIn(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/locate-ip',
+      remoteAddress: '81.2.69.160',
+      cookies,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<LocateIpResponse>()).toEqual({ available: false, reason: 'disabled' });
+    expect(locator.locate).not.toHaveBeenCalled();
+  });
+});

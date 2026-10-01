@@ -2,10 +2,15 @@
  * The radii a Runner can pick for their Search Area, in km. The single place to change
  * the set.
  */
-// TODO(decision): a placeholder set until the ranking decisions settle what's useful.
-export const SEARCH_RADII_KM = [5, 10, 25, 50] as const;
+export const SEARCH_RADII_KM = [1, 2, 5, 10] as const;
 
 export type SearchRadiusKm = (typeof SEARCH_RADII_KM)[number];
+
+/** The radius picked before the Runner has chosen one. */
+export const DEFAULT_SEARCH_RADIUS_KM: SearchRadiusKm = 5;
+
+/** The radius marked "slower, uses more of the daily budget". */
+export const SLOW_SEARCH_RADIUS_KM: SearchRadiusKm = 10;
 
 export function isSearchRadiusKm(value: unknown): value is SearchRadiusKm {
   return SEARCH_RADII_KM.some((radius) => radius === value);
@@ -23,10 +28,10 @@ export type SearchArea = {
   radiusKm: SearchRadiusKm;
 };
 
-/** What `GET` and `PUT /api/search-area` return: null until the Runner saves one. */
+/** What `GET /api/search-area` returns: null until the Runner saves one. */
 export type SearchAreaResponse = {
   searchArea: SearchArea | null;
 };
 
-/** The body of `PUT /api/search-area`: replaces the Runner's Search Area. */
+/** The body of `POST /api/search`: replaces the Runner's Search Area and searches it. */
 export type SearchAreaUpdate = SearchArea;

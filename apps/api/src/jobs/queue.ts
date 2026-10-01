@@ -1,0 +1,291 @@
+// The Strava job queue: work sits in `strava_jobs` and is drained by requests and the tick.
+import { and, asc, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import type { Database } from '../db/client.js';
+import { STRAVA_JOB_KINDS, stravaJobs } from '../db/schema.js';
+import { StravaRateLimitError, StravaRevokedError, type StravaClient } from '../strava/client.js';
+import { checkBudget, recordRateLimited } from './budget.js';
+
+export type JobKind = (typeof STRAVA_JOB_KINDS)[number];
+export type Job = typeof stravaJobs.$inferSelect;
+
+/** Job priorities, highest first: search > new-run details > mapping > freshness. */
+export const JOB_PRIORITY = {
+  search: 400,
+  'new-run': 300,
+  mapping: 200,
+  freshness: 100,
+} as const;
+export type JobPriority = keyof typeof JOB_PRIORITY;
+
+// TODO(decision): the spec doesn't set the retry policy. A failing job is tried this many
+// times in all, waiting RETRY_BACKOFF_MS × 2^(attempt - 1) between tries.
+/** A job that has failed this many times is marked failed. */
+export const MAX_JOB_ATTEMPTS = 5;
+/** The wait before the first retry; it doubles with each further attempt. */
+export const RETRY_BACKOFF_MS = 60 * 1000;
+/**
+ * A claimed job's lease: if the drain running it dies (a deploy, a crash), another drain may
+ * claim it again once this has passed. Handlers take seconds, so this is generous.
+ */
+export const JOB_LEASE_MS = 5 * 60 * 1000;
+
+export type JobContext = {
+  db: Database['db'];
+  strava: StravaClient;
+  /** The drain's clock. */
+  now: () => Date;
+  /** Queues follow-up work (at the drain's current time). */
+  enqueue: (job: NewJob) => Promise<number>;
+};
+
+/** Runs one job. Throwing records a retry (or, past the attempt limit, a failure). */
+export type JobHandler = (job: Job, context: JobContext) => Promise<void>;
+export type JobHandlers = Partial<Record<JobKind, JobHandler>>;
+
+/** Called once a job is finished for good: done, or failed past the attempt limit. */
+export type JobFinishedHook = (
+  job: Job,
+  outcome: 'done' | 'failed',
+  context: JobContext,
+) => Promise<void>;
+
+export type NewJob = {
+  kind: JobKind;
+  /** The activity or Segment id (or the page), depending on the kind. */
+  target?: number | null;
+  runnerId: number;
+  crawlId?: number | null;
+  priority: JobPriority;
+};
+
+export type DrainOptions = {
+  /** No job is claimed at or after this time. */
+  deadline: Date;
+  now: () => Date;
+  strava: StravaClient;
+  /** How many jobs run at once. */
+  concurrency?: number;
+  /** Runs only this Runner's jobs (a search's first burst). */
+  runnerId?: number;
+  /** Runs only jobs at this priority or above. */
+  minPriority?: JobPriority;
+  /** Claims at most this many jobs of each kind listed; unlisted kinds are unlimited. */
+  limits?: Partial<Record<JobKind, number>>;
+};
+
+export type DrainResult = {
+  succeeded: number;
+  retried: number;
+  failed: number;
+  /** Jobs Strava rate-limited (429), put back for the next window without counting an attempt. */
+  rateLimited: number;
+};
+
+/** The database, or a transaction on it. */
+export type Db = Database['db'] | Parameters<Parameters<Database['db']['transaction']>[0]>[0];
+
+/**
+ * Adds a pending job. An identical pending job (same kind, Runner and target) isn't
+ * duplicated: it keeps its place, takes the higher of the two priorities, and gains the crawl
+ * link if it had none. Returns the pending job's id.
+ */
+export async function enqueueJob(db: Db, job: NewJob, now = new Date()): Promise<number> {
+  const target = job.target ?? null;
+  const crawlId = job.crawlId ?? null;
+  const [row] = await db.execute<{ id: number }>(sql`
+    insert into ${stravaJobs} (kind, target, runner_id, crawl_id, priority, not_before)
+    values (${job.kind}, ${target}, ${job.runnerId}, ${crawlId}, ${JOB_PRIORITY[job.priority]},
+      ${now.toISOString()}::timestamptz)
+    on conflict (kind, runner_id, coalesce(target, -1)) where status = 'pending'
+    do update set
+      priority = greatest(${stravaJobs}.priority, excluded.priority),
+      crawl_id = coalesce(${stravaJobs}.crawl_id, excluded.crawl_id),
+      updated_at = now()
+    returning id`);
+  return row!.id;
+}
+
+/**
+ * The queue, with its handlers registered by kind. A job whose kind has no handler fails
+ * straight away. `onFinished` hears about every job that is done or has failed for good.
+ */
+export function createJobQueue(
+  db: Database['db'],
+  handlers: JobHandlers,
+  { onFinished }: { onFinished?: JobFinishedHook } = {},
+) {
+  /** Adds a pending job (see enqueueJob). */
+  function enqueue(job: NewJob, now = new Date()): Promise<number> {
+    return enqueueJob(db, job, now);
+  }
+
+  /**
+   * Claims the most urgent runnable job (or one whose lease ran out), leaving out the given
+   * Runners' jobs and kinds (and other Runners' jobs when `onlyRunner` is set, and jobs below
+   * `minPriority`), or returns undefined.
+   */
+  async function claim(
+    now: Date,
+    {
+      skipRunners,
+      skipKinds,
+      onlyRunner,
+      minPriority,
+    }: {
+      skipRunners: number[];
+      skipKinds: JobKind[];
+      onlyRunner?: number;
+      minPriority?: JobPriority;
+    },
+  ): Promise<Job | undefined> {
+    const next = db
+      .select({ id: stravaJobs.id })
+      .from(stravaJobs)
+      .where(
+        and(
+          or(eq(stravaJobs.status, 'pending'), eq(stravaJobs.status, 'running')),
+          lte(stravaJobs.notBefore, now),
+          skipRunners.length > 0 ? notInArray(stravaJobs.runnerId, skipRunners) : undefined,
+          skipKinds.length > 0 ? notInArray(stravaJobs.kind, skipKinds) : undefined,
+          onlyRunner === undefined ? undefined : eq(stravaJobs.runnerId, onlyRunner),
+          minPriority === undefined
+            ? undefined
+            : gte(stravaJobs.priority, JOB_PRIORITY[minPriority]),
+        ),
+      )
+      .orderBy(desc(stravaJobs.priority), asc(stravaJobs.id))
+      .limit(1)
+      .for('update', { skipLocked: true });
+    const [job] = await db
+      .update(stravaJobs)
+      .set({
+        status: 'running',
+        attempts: sql`${stravaJobs.attempts} + 1`,
+        // While running, not_before is the lease's end.
+        notBefore: new Date(now.getTime() + JOB_LEASE_MS),
+      })
+      .where(inArray(stravaJobs.id, next))
+      .returning();
+    return job;
+  }
+
+  async function run(job: Job, context: JobContext): Promise<keyof DrainResult | undefined> {
+    const handler = handlers[job.kind];
+    try {
+      if (!handler) throw new Error(`No handler for ${job.kind} jobs`);
+      await handler(job, context);
+    } catch (error) {
+      // The Runner has been deleted, and their jobs with them: there's nothing to record.
+      if (error instanceof StravaRevokedError) return undefined;
+      const now = context.now();
+      const lastError = error instanceof Error ? error.message : String(error);
+      if (error instanceof StravaRateLimitError) {
+        // Not the job's fault: try again in the next window, without using up an attempt.
+        await recordRateLimited(db, job.runnerId, error.rateLimits, now);
+        await db
+          .update(stravaJobs)
+          .set({
+            status: 'pending',
+            attempts: sql`${stravaJobs.attempts} - 1`,
+            notBefore: error.retryAt,
+            lastError,
+          })
+          .where(eq(stravaJobs.id, job.id));
+        return 'rateLimited';
+      }
+      if (handler && job.attempts < MAX_JOB_ATTEMPTS) {
+        const backoff = RETRY_BACKOFF_MS * 2 ** (job.attempts - 1);
+        await db
+          .update(stravaJobs)
+          .set({ status: 'pending', notBefore: new Date(now.getTime() + backoff), lastError })
+          .where(eq(stravaJobs.id, job.id));
+        return 'retried';
+      }
+      await db
+        .update(stravaJobs)
+        .set({ status: 'failed', lastError, finishedAt: now })
+        .where(eq(stravaJobs.id, job.id));
+      await onFinished?.(job, 'failed', context);
+      return 'failed';
+    }
+    await db
+      .update(stravaJobs)
+      .set({ status: 'done', lastError: null, finishedAt: context.now() })
+      .where(eq(stravaJobs.id, job.id));
+    await onFinished?.(job, 'done', context);
+    return 'succeeded';
+  }
+
+  /**
+   * Runs jobs, most urgent first, until none are runnable, the budget runs out or the deadline
+   * passes. Claims use `FOR UPDATE SKIP LOCKED`, so overlapping drains (other requests,
+   * instances or deploys) never run the same job.
+   *
+   * Before each claim the budget is checked: the drain stops when an app-wide window has only
+   * the interactive reserve left, and a Runner at their daily cap has their jobs moved to the
+   * next UTC day. Each job counts as one read until it finishes (and Strava's headers say how
+   * many it really used). Workers check and claim one at a time, so this drain's own workers
+   * can't overshoot; overlapping drains can, by at most the reads they have running.
+   */
+  async function drain({
+    deadline,
+    now,
+    strava,
+    concurrency = 1,
+    runnerId,
+    minPriority,
+    limits = {},
+  }: DrainOptions) {
+    const result: DrainResult = { succeeded: 0, retried: 0, failed: 0, rateLimited: 0 };
+    const context: JobContext = { db, strava, now, enqueue: (job) => enqueue(job, now()) };
+    const inFlight = { total: 0, byRunner: new Map<number, number>() };
+    const claimed = new Map<JobKind, number>();
+    const kindsAtLimit = () =>
+      STRAVA_JOB_KINDS.filter((kind) => (claimed.get(kind) ?? 0) >= (limits[kind] ?? Infinity));
+    const adjust = (runnerId: number, by: number) => {
+      inFlight.total += by;
+      inFlight.byRunner.set(runnerId, (inFlight.byRunner.get(runnerId) ?? 0) + by);
+    };
+    let gate: Promise<unknown> = Promise.resolve();
+    function checkAndClaim(): Promise<Job | undefined> {
+      const next = gate.then(async () => {
+        if (now() >= deadline) return undefined;
+        const skipKinds = kindsAtLimit();
+        if (skipKinds.length === STRAVA_JOB_KINDS.length) return undefined;
+        const budget = await checkBudget(db, now(), inFlight);
+        if (budget.stopped) return undefined;
+        const job = await claim(now(), {
+          skipRunners: budget.blockedRunners,
+          skipKinds,
+          onlyRunner: runnerId,
+          minPriority,
+        });
+        if (job) {
+          adjust(job.runnerId, 1);
+          claimed.set(job.kind, (claimed.get(job.kind) ?? 0) + 1);
+        }
+        return job;
+      });
+      gate = next.catch(() => undefined);
+      return next;
+    }
+    async function worker() {
+      for (;;) {
+        const job = await checkAndClaim();
+        if (!job) return;
+        try {
+          const outcome = await run(job, context);
+          if (outcome) result[outcome] += 1;
+        } finally {
+          adjust(job.runnerId, -1);
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    return result;
+  }
+
+  return { enqueue, drain };
+}
+
+export type JobQueue = ReturnType<typeof createJobQueue>;

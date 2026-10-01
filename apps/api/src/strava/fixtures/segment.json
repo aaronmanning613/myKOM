@@ -1,0 +1,30 @@
+{
+  "id": 8793341,
+  "name": "Joe Shuster Wayyy",
+  "activity_type": "Run",
+  "distance": 499.9,
+  "average_grade": 1.2,
+  "maximum_grade": 3.3,
+  "elevation_high": 90.8,
+  "elevation_low": 84.9,
+  "start_latlng": [43.639712, -79.42358],
+  "end_latlng": [43.641716, -79.428409],
+  "hazardous": false,
+  "starred": false,
+  "total_elevation_gain": 6,
+  "effort_count": 4884,
+  "athlete_count": 1842,
+  "map": {
+    "polyline": "ekjiGjlwcN[RuBR_@\\Yt@Qj@It@@z@Cp@Ol@u@pEQn@Wp@o@tAMl@@v@Fr@Af@"
+  },
+  "athlete_segment_stats": {
+    "pr_elapsed_time": 127,
+    "pr_date": "2026-09-07",
+    "effort_count": 7
+  },
+  "xoms": {
+    "kom": "58s",
+    "qom": "1:27",
+    "overall": "58s"
+  }
+}

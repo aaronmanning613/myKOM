@@ -26,21 +26,29 @@ test('the Fitness Profile loads and saves for the real Runner', async ({ page })
   await signInLive(page);
   await page.goto('/fitness-profile');
   const fiveK = page.getByLabel('5K', { exact: true });
+  const fiveKRow = page.getByRole('row').filter({ has: fiveK });
   const original = await fiveK.inputValue();
+  const wasPinned = (await fiveKRow.textContent())?.includes('📌 yours') ?? false;
 
   // A different time each run, so the reload proves this run's save.
   const time = `19:${String(new Date().getSeconds()).padStart(2, '0')}`;
   await fiveK.fill(time);
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Fitness Profile saved.');
+  await fiveK.blur();
+  await expect(page.getByRole('status')).toHaveText('Saved.');
   await page.reload();
   await expect(fiveK).toHaveValue(time);
+  await expect(fiveKRow).toContainText('📌 yours');
 
-  // Put the Runner's own 5K back.
-  if (original) await fiveK.fill(original);
-  else await page.getByRole('button', { name: 'Clear 5K' }).click();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Fitness Profile saved.');
+  // Put the Runner's own 5K back: their pin, the generated time, or nothing.
+  if (original && !wasPinned) {
+    await page.getByRole('button', { name: 'Use generated 5K' }).click();
+    await expect(page.getByRole('status')).toHaveText('5K is back to the generated time.');
+  } else {
+    await fiveK.fill(original);
+    await fiveK.blur();
+    await expect(page.getByRole('status')).toHaveText('Saved.');
+  }
+  await expect(fiveK).toHaveValue(original);
 });
 
 test('the Search Area loads and saves for the real Runner', async ({ page }) => {
@@ -54,19 +62,24 @@ test('the Search Area loads and saves for the real Runner', async ({ page }) => 
   await expect(page.getByLabel('Place or postcode')).toBeVisible();
 
   await page.getByLabel('Place or postcode').fill('Leeds');
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page
+  const centre = page.getByRole('region', { name: 'Centre' });
+  await centre.getByRole('button', { name: 'Search' }).click();
+  await centre
     .getByRole('list', { name: 'Places found' })
     .getByRole('button', { name: label })
     .click();
-  // By role, not text: a Search Area saved at 25 km by an earlier run also shows "25 km".
-  await page.getByRole('radio', { name: '25 km' }).check();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('status')).toHaveText('Search Area saved.');
+  // By role, not text: a Search Area saved at 1 km by an earlier run also shows "1 km".
+  // Saving searches: the starred Segments read, plus any of the Runner's runs through Leeds.
+  await page
+    .getByRole('group', { name: 'Radius', exact: true })
+    .getByRole('radio', { name: '1 km' })
+    .check();
+  await page.getByRole('button', { name: 'Save and see results' }).click();
+  await expect(page).toHaveURL(/\/results$/, { timeout: 30_000 });
 
-  await page.reload();
+  await page.goto('/search-area');
   await expect(page.getByTestId('saved-search-area')).toHaveText(
-    `Your Search Area: 25 km around ${label}`,
+    `Your Search Area: 1 km around ${label}`,
   );
 });
 

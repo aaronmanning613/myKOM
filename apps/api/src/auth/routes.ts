@@ -1,22 +1,19 @@
 import { randomBytes } from 'node:crypto';
+import type { Me } from '@mykom/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Database } from '../db/client.js';
-import type { StravaClient } from '../strava/client.js';
+import { loadSuggestionSummary } from '../fitness-profile/store.js';
+import { StravaRevokedError, type StravaClient } from '../strava/client.js';
 import { DeauthorizeBlockedError } from '../strava/live-mode.js';
+import type { TokenCipher } from '../strava/token-cipher.js';
+import { syncFirstSignIn } from '../sync/activities.js';
 import { requireRunner } from './guard.js';
-import { deleteRunner, upsertRunnerFromStrava } from './runners.js';
+import { deleteRunner, findRunner, upsertRunnerFromStrava } from './runners.js';
 import { endSession, sessionRunnerId, startSession } from './session.js';
 
 export const STATE_COOKIE = 'mykom_oauth_state';
 const STATE_COOKIE_PATH = '/api/auth/strava';
 const STATE_MAX_AGE_SECONDS = 10 * 60;
-
-/** What `GET /api/me` returns for the signed-in Runner. */
-export type Me = {
-  id: number;
-  firstName: string;
-  avatarUrl: string | null;
-};
 
 /** Why the callback sent the Runner back to the login page (`/login?error=...`). */
 export type LoginError = 'access_denied' | 'invalid_state' | 'strava';
@@ -24,6 +21,8 @@ export type LoginError = 'access_denied' | 'invalid_state' | 'strava';
 export type AuthRoutesOptions = {
   db: Database['db'];
   strava: StravaClient;
+  /** Encrypts the tokens saved at sign-in. */
+  tokenCipher: TokenCipher;
 };
 
 type CallbackQuery = { code?: string; state?: string; scope?: string; error?: string };
@@ -33,7 +32,10 @@ function callbackUrl(request: FastifyRequest): string {
   return `${request.protocol}://${request.host}/api/auth/strava/callback`;
 }
 
-export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { db, strava }) => {
+export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
+  app,
+  { db, strava, tokenCipher },
+) => {
   app.get('/api/auth/strava', async (request, reply) => {
     const state = randomBytes(24).toString('base64url');
     reply.setCookie(STATE_COOKIE, state, {
@@ -65,10 +67,30 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
     const grantedScopes = (scope ?? '').split(',').filter(Boolean);
     let runnerId: number;
     try {
-      runnerId = await upsertRunnerFromStrava(db, await strava.exchangeCode(code), grantedScopes);
+      runnerId = await upsertRunnerFromStrava(
+        db,
+        tokenCipher,
+        await strava.exchangeCode(code),
+        grantedScopes,
+      );
     } catch (err) {
       request.log.error(err, 'Strava sign-in failed');
       return toLogin('strava');
+    }
+
+    // First sign-in (or one whose first sync failed): read every run and starred Segment, and
+    // apply the Fitness Profile generated from the runs.
+    const runner = await findRunner(db, runnerId);
+    if (runner && !runner.activitiesCheckedAt) {
+      try {
+        await syncFirstSignIn({ db, strava }, runnerId);
+      } catch (err) {
+        // The Strava client has already deleted a revoked Runner.
+        if (err instanceof StravaRevokedError) return toLogin('strava');
+        // TODO(decision): a failed first sync doesn't block sign-in; with activities_checked_at
+        // still unset, the next sign-in tries again.
+        request.log.error(err, 'First Strava sync failed');
+      }
     }
     startSession(request, reply, runnerId);
     return reply.redirect('/');
@@ -77,7 +99,15 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { d
   app.get('/api/me', async (request, reply) => {
     const runner = await requireRunner(db, request, reply);
     if (!runner) return reply;
-    const me: Me = { id: runner.id, firstName: runner.firstName, avatarUrl: runner.avatarUrl };
+    const me: Me = {
+      id: runner.id,
+      firstName: runner.firstName,
+      avatarUrl: runner.avatarUrl,
+      sex: runner.sex,
+      recordGender: runner.recordGender,
+      onboarded: runner.onboardedAt !== null,
+      suggestion: await loadSuggestionSummary(db, runner.id),
+    };
     return me;
   });
 
