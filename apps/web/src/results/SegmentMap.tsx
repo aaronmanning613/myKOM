@@ -9,6 +9,8 @@ import {
   CircleMarker,
   FeatureGroup,
   MapContainer,
+  Marker,
+  Pane,
   Polyline,
   Popup,
   TileLayer,
@@ -16,13 +18,17 @@ import {
 } from 'react-leaflet';
 import { formatDistance, formatGrade, Predicted, StravaLink } from './ResultsSection';
 import {
+  ARROW_SIZE,
+  FINISH_COLOUR,
   LIST_COLOURS,
+  LOOP_RING_RADIUS,
   MAP_HEIGHT_CLASSES,
   MARKER_RADIUS,
   ROUTE_WEIGHT,
   SEARCH_AREA_COLOUR,
   SEARCH_AREA_DASH,
   segmentMapFeatures,
+  START_COLOUR,
   START_OUTLINE_COLOUR,
   START_RADIUS,
   START_ZOOM,
@@ -47,6 +53,13 @@ const SHOW_SEGMENT_OPTIONS: L.FitBoundsOptions = { padding: [24, 24], animate: f
  * otherwise cover the Segment's name on the 260 px phone map.
  */
 const POPUP_PAN_PADDING_TOP_LEFT: L.PointTuple = [5, 80];
+
+/**
+ * Panes above the routes' lines (Leaflet's overlay pane, z-index 400) and below its marker pane,
+ * so every route's arrow sits over the lines and its finish and start over the arrow.
+ */
+const ARROW_PANE = 'segmentMapArrows';
+const ENDS_PANE = 'segmentMapEnds';
 
 const toLeaflet = ({ lat, lng }: LatLng): L.LatLngTuple => [lat, lng];
 const toLeafletBounds = (box: BoundingBox): L.LatLngBoundsExpression => [
@@ -103,6 +116,33 @@ function ShowSelection({
   return null;
 }
 
+/** A chevron pointing up (north), in the list colour with a white outline. */
+function arrowSvg(colour: string): string {
+  const path = 'M3 11 L8 5 L13 11';
+  const stroke = 'fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${ARROW_SIZE}" height="${ARROW_SIZE}" viewBox="0 0 16 16">` +
+    `<path d="${path}" ${stroke} stroke="#ffffff" stroke-width="5"/>` +
+    `<path d="${path}" ${stroke} stroke="${colour}" stroke-width="2.5"/>` +
+    '</svg>'
+  );
+}
+
+/**
+ * The direction arrow's icon. The rotation is on an inner element: Leaflet positions the icon
+ * itself with its own transform.
+ */
+function arrowIcon(className: string, colour: string, bearingDegrees: number): L.DivIcon {
+  return L.divIcon({
+    className,
+    html:
+      `<div class="segment-map-arrow-inner" style="transform: rotate(${bearingDegrees}deg)">` +
+      `${arrowSvg(colour)}</div>`,
+    iconSize: [ARROW_SIZE, ARROW_SIZE],
+    iconAnchor: [ARROW_SIZE / 2, ARROW_SIZE / 2],
+  });
+}
+
 function SegmentPopup({ feature }: { feature: SegmentMapFeature }) {
   const { row, list, shape } = feature;
   return (
@@ -123,7 +163,11 @@ function SegmentPopup({ feature }: { feature: SegmentMapFeature }) {
         Record {formatTime(row.record)} · Predicted <Predicted predicted={row.predicted} /> · Your
         PB {row.pb === null ? '—' : formatTime(row.pb)}
       </div>
-      {shape.kind === 'start' && <div className="text-gray-600">Start point only</div>}
+      {shape.kind === 'route' ? (
+        <div className="text-gray-600">Starts at the green dot, finishes at the black one</div>
+      ) : (
+        <div className="text-gray-600">Start point only</div>
+      )}
       <div>
         <StravaLink segmentId={row.segmentId} name={row.name} />
       </div>
@@ -131,7 +175,10 @@ function SegmentPopup({ feature }: { feature: SegmentMapFeature }) {
   );
 }
 
-/** One Segment: a route with a dot at its start, or a bigger dot on its start alone. */
+/**
+ * One Segment: a route with its direction arrow, finish and start (in that order, bottom to top),
+ * or a bigger dot on its start alone.
+ */
 function SegmentLayer({
   feature,
   layers,
@@ -144,6 +191,13 @@ function SegmentLayer({
   const colour = LIST_COLOURS[feature.list];
   const id = `segment-map-${feature.segmentId}`;
   const { segmentId, shape } = feature;
+  const markers = shape.kind === 'route' ? shape.markers : null;
+  const arrow = useMemo(
+    () =>
+      markers &&
+      arrowIcon(`${id} segment-map-arrow`, colour, Math.round(markers.arrow.bearingDegrees)),
+    [id, colour, markers],
+  );
   return (
     <FeatureGroup
       ref={(layer) => {
@@ -156,7 +210,7 @@ function SegmentLayer({
       <Popup autoPanPaddingTopLeft={POPUP_PAN_PADDING_TOP_LEFT}>
         <SegmentPopup feature={feature} />
       </Popup>
-      {shape.kind === 'route' ? (
+      {shape.kind === 'route' && markers && arrow ? (
         <>
           <Polyline
             positions={shape.points.map(toLeaflet)}
@@ -166,21 +220,54 @@ function SegmentLayer({
               className: `${id} segment-map-route`,
             }}
           />
+          <Marker
+            position={toLeaflet(markers.arrow.point)}
+            icon={arrow}
+            interactive={false}
+            keyboard={false}
+            pane={ARROW_PANE}
+          />
           <CircleMarker
-            center={toLeaflet(shape.points[0]!)}
+            center={toLeaflet(markers.finish)}
+            pane={ENDS_PANE}
+            {...(markers.loop
+              ? {
+                  // A ring around the start, so both stay visible.
+                  radius: LOOP_RING_RADIUS,
+                  pathOptions: {
+                    color: FINISH_COLOUR,
+                    weight: 3,
+                    fill: false,
+                    className: `${id} segment-map-finish`,
+                  },
+                }
+              : {
+                  radius: MARKER_RADIUS,
+                  pathOptions: {
+                    color: START_OUTLINE_COLOUR,
+                    weight: 2,
+                    fillColor: FINISH_COLOUR,
+                    fillOpacity: 1,
+                    className: `${id} segment-map-finish`,
+                  },
+                })}
+          />
+          <CircleMarker
+            center={toLeaflet(markers.start)}
             radius={MARKER_RADIUS}
+            pane={ENDS_PANE}
             pathOptions={{
-              color: colour,
-              fillColor: colour,
+              color: START_OUTLINE_COLOUR,
+              weight: 2,
+              fillColor: START_COLOUR,
               fillOpacity: 1,
-              weight: 1,
-              className: `${id} segment-map-route-start`,
+              className: `${id} segment-map-start-marker`,
             }}
           />
         </>
       ) : (
         <CircleMarker
-          center={toLeaflet(shape.point)}
+          center={toLeaflet(startOf(feature))}
           radius={START_RADIUS}
           pathOptions={{
             color: START_OUTLINE_COLOUR,
@@ -219,6 +306,9 @@ export default function SegmentMap({
     >
       <TileLayer url={TILE_URL} maxZoom={TILE_MAX_ZOOM} attribution={TILE_ATTRIBUTION} />
       <FrameSearchArea searchArea={searchArea} />
+      {/* Before the Segments, so the panes exist when their layers are added. */}
+      <Pane name={ARROW_PANE} style={{ zIndex: '450' }} />
+      <Pane name={ENDS_PANE} style={{ zIndex: '460' }} />
       <Circle
         center={toLeaflet(searchArea.centre)}
         radius={searchArea.radiusMetres}

@@ -137,6 +137,65 @@ async function seedManyRoutes(page: Page) {
   );
 }
 
+/**
+ * A Runner with a 2 km Search Area and three targets: a diagonal route running north-east, a
+ * loop (a square back to its start) and a Segment with only its start stored.
+ */
+async function seedRouteMarkers(page: Page) {
+  await signIn(page, 'Mara');
+  const runs = await page.request.post('/api/test/runs', {
+    data: {
+      runs: [
+        { name: 'Marathon', distance: 42_195, movingTime: 8463, daysAgo: 300 },
+        { name: '10K race', distance: 10_000, movingTime: 1839, daysAgo: 100 },
+      ],
+    },
+  });
+  expect(runs.ok()).toBe(true);
+  const search = await page.request.post('/api/search', {
+    data: { label: 'Ottawa, Ontario', ...CENTRE, radiusKm: 2 },
+  });
+  expect(search.ok()).toBe(true);
+
+  const routeStart = offset(CENTRE, 0.002, -0.004);
+  const loopStart = offset(CENTRE, -0.006, -0.006);
+  const loop = [
+    loopStart,
+    offset(loopStart, 0.003, 0),
+    offset(loopStart, 0.003, 0.004),
+    offset(loopStart, 0, 0.004),
+    loopStart,
+  ];
+  const base = { distance: 1000, averageGrade: 0.5, record: 170, pb: 175 };
+  const segments = await page.request.post('/api/test/segments', {
+    data: {
+      segments: [
+        {
+          ...base,
+          ...routeStart,
+          name: 'Canal Dash',
+          athleteCount: 5400,
+          polyline: encodePolyline([routeStart, offset(routeStart, 0.004, 0.008)]),
+        },
+        {
+          ...base,
+          ...loopStart,
+          name: 'Park Loop',
+          athleteCount: 3000,
+          polyline: encodePolyline(loop),
+        },
+        { ...base, ...offset(CENTRE, -0.006, 0.006), name: 'Rideau Hill', athleteCount: 900 },
+      ],
+    },
+  });
+  expect(segments.ok()).toBe(true);
+
+  const stored = (await (await page.request.get('/api/results')).json()) as Results;
+  const idOf = (name: string) => stored.targets.find((r) => r.name === name)!.segmentId;
+  expect(stored.targets.map((r) => r.name)).toEqual(['Canal Dash', 'Park Loop', 'Rideau Hill']);
+  return { route: idOf('Canal Dash'), loop: idOf('Park Loop'), startOnly: idOf('Rideau Hill') };
+}
+
 const viewports = [
   { name: 'desktop', size: { width: 1280, height: 800 } },
   { name: 'phone', size: { width: 375, height: 667 } },
@@ -156,7 +215,7 @@ for (const viewport of viewports) {
       const map = page.getByRole('region', { name: 'Segment map' });
       await expect(map).toBeVisible();
       await expect(
-        page.getByText('Nearest misses · a line is the whole Segment, a dot is its start'),
+        page.getByText(/Nearest misses · .*start .*finish · a dot alone is a Segment’s start only/),
       ).toBeVisible();
 
       const route = map.locator(`.segment-map-${ids.route}.segment-map-route`);
@@ -179,6 +238,7 @@ for (const viewport of viewports) {
       await expect(popup).toBeVisible();
       await expect(popup).toContainText('Your target');
       await expect(popup).not.toContainText('Start point only');
+      await expect(popup).toContainText('Starts at the green dot, finishes at the black one');
       const link = popup.getByRole('link', { name: 'View Canal Dash on Strava' });
       await expect(link).toHaveText('View on Strava');
       await expect(link).toHaveAttribute('href', `https://www.strava.com/segments/${ids.route}`);
@@ -186,11 +246,18 @@ for (const viewport of viewports) {
       await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
       await expect(link).toHaveCSS('color', 'rgb(252, 82, 0)');
 
+      // On the 260 px phone map, the popup's pan can push the next dot out of view: close it and
+      // zoom out to bring it back.
+      await popup.getByRole('button', { name: /close/i }).click();
+      await expect(popup).toHaveCount(0);
+      await map.getByRole('button', { name: 'Zoom out' }).click();
+      await page.waitForTimeout(500);
       await startOnly.click();
       popup = popupFor('Rideau Hill');
       await expect(popup).toBeVisible();
       await expect(popup.getByRole('img', { name: 'Held' })).toBeVisible();
       await expect(popup).toContainText('Start point only');
+      await expect(popup).not.toContainText('Starts at the green dot');
       await expect(popup.getByRole('link', { name: 'View Rideau Hill on Strava' })).toHaveAttribute(
         'href',
         `https://www.strava.com/segments/${ids.startOnly}`,
@@ -208,6 +275,51 @@ for (const viewport of viewports) {
       await expect
         .poll(() => tiles.requested.filter((url) => !tiles.served.includes(url)))
         .toEqual([]);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    });
+
+    test('marks each route’s start, finish and direction', async ({ page }) => {
+      const ids = await seedRouteMarkers(page);
+      await page.goto('/results');
+
+      const map = page.getByRole('region', { name: 'Segment map' });
+      await expect(map.locator('.segment-map-route')).toHaveCount(2);
+      for (const id of [ids.route, ids.loop]) {
+        const start = map.locator(`.segment-map-${id}.segment-map-start-marker`);
+        await expect(start).toHaveCount(1);
+        await expect(start).toHaveAttribute('fill', '#16a34a');
+        await expect(map.locator(`.segment-map-${id}.segment-map-finish`)).toHaveCount(1);
+        await expect(map.locator(`.segment-map-${id}.segment-map-arrow`)).toHaveCount(1);
+      }
+      await expect(map.locator(`.segment-map-${ids.route}.segment-map-finish`)).toHaveAttribute(
+        'fill',
+        '#111827',
+      );
+      // A loop's finish is a ring around its start.
+      const ring = map.locator(`.segment-map-${ids.loop}.segment-map-finish`);
+      await expect(ring).toHaveAttribute('fill', 'none');
+      await expect(ring).toHaveAttribute('stroke', '#111827');
+      // A start-only Segment has just its dot.
+      await expect(map.locator(`.segment-map-${ids.startOnly}`)).toHaveCount(1);
+      await expect(map.locator(`.segment-map-${ids.startOnly}.segment-map-start`)).toHaveCount(1);
+
+      // The arrow points the way the route runs: north-east.
+      const inner = map.locator(
+        `.segment-map-${ids.route}.segment-map-arrow .segment-map-arrow-inner`,
+      );
+      const transform = await inner.evaluate((el) => (el as HTMLElement).style.transform);
+      expect(transform).toMatch(/^rotate\(\d+deg\)$/);
+      const degrees = Number(/\d+/.exec(transform)![0]);
+      expect(degrees).toBeGreaterThan(30);
+      expect(degrees).toBeLessThan(80);
+
+      // The finish opens the Segment's popup, as its line does.
+      await map.locator(`.segment-map-${ids.route}.segment-map-finish`).click();
+      const popup = map.locator('.leaflet-popup', { hasText: 'Canal Dash' });
+      await expect(popup).toBeVisible();
+      await expect(popup).toContainText('Starts at the green dot, finishes at the black one');
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);

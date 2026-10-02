@@ -3,8 +3,10 @@
 import type { Results } from '@mykom/shared';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import {
+  FINISH_COLOUR,
   MAP_HEIGHT_CLASSES,
   NEAREST_MISS_COLOUR,
+  START_COLOUR,
   TARGET_COLOUR,
   type SegmentMapSelection,
 } from './segment-map-features';
@@ -61,7 +63,15 @@ export function SegmentMapPanel({
         <span aria-hidden="true" style={{ color: NEAREST_MISS_COLOUR }}>
           ●
         </span>{' '}
-        Nearest misses · a line is the whole Segment, a dot is its start
+        Nearest misses ·{' '}
+        <span aria-hidden="true" style={{ color: START_COLOUR }}>
+          ●
+        </span>{' '}
+        start{' '}
+        <span aria-hidden="true" style={{ color: FINISH_COLOUR }}>
+          ●
+        </span>{' '}
+        finish · a dot alone is a Segment’s start only
       </p>
     </div>
   );

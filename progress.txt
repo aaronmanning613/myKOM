@@ -68,3 +68,29 @@
   segmentMapFeatures attaching markers to routes only.
 - Notes: no UI work beyond SegmentMap.tsx's interim start dot using MARKER_RADIUS (6 px, was
   4) in the list colour; P4 restyles it green and adds finish and arrow.
+
+## P4 - Draw the start, finish and direction (2026-10-01)
+- Done: SegmentMap.tsx draws each route's line, a non-interactive arrow Marker (L.divIcon with a
+  static SVG chevron in the list colour with a white outline; the rotation is on an inner
+  `.segment-map-arrow-inner` div), the finish (a #111827 dot, or a 3 px ring of radius 9 with no
+  fill for a loop) and the #16a34a start, all in the Segment's FeatureGroup so start and finish
+  open its popup. Z-order comes from two custom panes rendered before the Segments:
+  `segmentMapArrows` (z-index 450) and `segmentMapEnds` (460), above the overlay pane's lines
+  (400) and below Leaflet's marker pane. Start-only Segments are unchanged. The route popup gains
+  "Starts at the green dot, finishes at the black one"; the legend is the PRD's new line (with
+  a curly apostrophe, the UI's convention). Class names: segment-map-start-marker,
+  segment-map-finish, segment-map-arrow.
+- Verified: pnpm typecheck, lint, test (shared 238, web 150, api 421), test:e2e (43) all pass;
+  segment-map.spec repeated twice with no flakes. New tests: SegmentMapPanel legend text and dot
+  colours, and a route + loop + start-only render with no console errors in jsdom; e2e "marks
+  each route's start, finish and direction" (desktop + 375 px): one start filled #16a34a, one
+  finish and one arrow per route, the route's finish filled #111827, the loop's finish fill
+  none, none on the start-only Segment, a rotate(55deg) arrow on a NE route, and clicking the
+  finish opens the popup with the new line. MCP click-through on `E2E=1 pnpm dev` at 1280 and
+  375 px: start and finish distinguishable at default zoom and zoomed in, loop ring around the
+  green start, arrows point along their routes (NE diagonal 55°, an L's second leg west 270°,
+  the loop's south leg 180°), no overflow, no console errors beyond the pre-sign-in /api/me 401.
+- Notes: the taller route popup made the 260 px phone map's auto-pan push the next dot out of
+  view in the existing "draws the targets…" e2e, so it now closes the popup and zooms out once
+  before clicking the start-only dot. In the MCP seed, one route's halfway point fell on another
+  route's finish, which hid the arrow (that's the specified z-order, ends over arrows).

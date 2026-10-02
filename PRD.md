@@ -217,7 +217,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - a loop and a non-loop near the threshold;
     - `segmentMapFeatures` attaching markers to routes only.
 
-- [ ] **P4** Draw the start, finish and direction:
+- [x] **P4** Draw the start, finish and direction:
   - in `SegmentMap.tsx`, each route draws its line, the arrow, the finish (a dot, or a ring for a loop) and the green start, in that z-order, as in Decisions → Start and finish;
   - the arrow is a non-interactive `Marker` with an `L.divIcon`: a static SVG chevron, rotated with a CSS `transform: rotate(<bearing>deg)` on an inner element, so Leaflet's own positioning transform isn't clobbered;
   - start and finish open the Segment's popup when clicked;

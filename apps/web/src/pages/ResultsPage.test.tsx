@@ -407,7 +407,8 @@ describe('Results', () => {
 
 // Leaflet's drawing is covered in e2e (real Chrome); here, what React renders around it.
 describe('the Segment map', () => {
-  const LEGEND = /Your targets.*Nearest misses · a line is the whole Segment, a dot is its start/;
+  const LEGEND =
+    /Your targets.*Nearest misses ·\s+start\s+finish · a dot alone is a Segment’s start only/;
   const map = () => screen.queryByRole('region', { name: 'Segment map' });
 
   // The placeholder is covered in SegmentMapPanel.test.tsx: by now the lazy chunk is cached.
