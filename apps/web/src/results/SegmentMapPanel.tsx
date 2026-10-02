@@ -2,9 +2,9 @@
 // loads, then the map, with its legend underneath. The lists never wait for it.
 import type { Results } from '@mykom/shared';
 import { lazy, Suspense, useEffect, useRef } from 'react';
+import { MAP_HEIGHT_CLASSES } from '../map/map-config';
 import {
   FINISH_COLOUR,
-  MAP_HEIGHT_CLASSES,
   NEAREST_MISS_COLOUR,
   START_COLOUR,
   TARGET_COLOUR,

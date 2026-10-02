@@ -235,7 +235,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### The Search Area map
 
-- [ ] **P5** Shared map code (a refactor, with no behaviour change):
+- [x] **P5** Shared map code (a refactor, with no behaviour change):
   - move the shared pieces into `apps/web/src/map/` as in Decisions → Shared map code;
   - `segment-map-features.ts`, `SegmentMap.tsx` and `SegmentMapPanel.tsx` import from there;
   - add a `circleBounds(centre, radiusMetres)` export that the Segment map's circle uses;

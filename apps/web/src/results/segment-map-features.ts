@@ -9,12 +9,11 @@ import {
   type ResultRow,
   type Results,
 } from '@mykom/shared';
+import { circleBounds } from '../map/geometry';
 import { routeMarkers, type RouteMarkers } from './route-markers';
 
 export const TARGET_COLOUR = '#ea580c';
 export const NEAREST_MISS_COLOUR = '#2563eb';
-export const SEARCH_AREA_COLOUR = '#6b7280';
-export const SEARCH_AREA_DASH = '6 6';
 /** A route's line, in px. */
 export const ROUTE_WEIGHT = 4;
 /** A route's start marker. */
@@ -33,14 +32,6 @@ export const START_RADIUS = 7;
 export const START_OUTLINE_COLOUR = '#ffffff';
 /** The zoom a start-only Segment is shown at. */
 export const START_ZOOM = 16;
-
-/** The map's height (Tailwind classes), shared with its loading placeholder so nothing shifts. */
-export const MAP_HEIGHT_CLASSES = 'h-[260px] sm:h-[400px]';
-
-export const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-export const TILE_MAX_ZOOM = 19;
-export const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 export type SegmentMapList = 'targets' | 'nearestMisses';
 
@@ -78,8 +69,6 @@ export type SegmentMapFeatures = {
   searchArea: SearchAreaCircle;
   segments: SegmentMapFeature[];
 };
-
-const EARTH_RADIUS_METRES = 6_371_000;
 
 export function segmentMapFeatures(
   results: Pick<Results, 'searchArea' | 'targets' | 'nearestMisses'>,
@@ -125,17 +114,7 @@ function isOnEarth({ lat, lng }: LatLng): boolean {
 }
 
 function searchAreaCircle(area: Results['searchArea']): SearchAreaCircle {
+  const centre = { lat: area.lat, lng: area.lng };
   const radiusMetres = area.radiusKm * 1000;
-  const dLat = (radiusMetres / EARTH_RADIUS_METRES) * (180 / Math.PI);
-  const dLng = dLat / Math.cos((area.lat * Math.PI) / 180);
-  return {
-    centre: { lat: area.lat, lng: area.lng },
-    radiusMetres,
-    bounds: {
-      minLat: area.lat - dLat,
-      minLng: area.lng - dLng,
-      maxLat: area.lat + dLat,
-      maxLng: area.lng + dLng,
-    },
-  };
+  return { centre, radiusMetres, bounds: circleBounds(centre, radiusMetres) };
 }

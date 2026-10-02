@@ -94,3 +94,18 @@
   view in the existing "draws the targets…" e2e, so it now closes the popup and zooms out once
   before clicking the start-only dot. In the MCP seed, one route's halfway point fell on another
   route's finish, which hid the arrow (that's the specified z-order, ends over arrows).
+
+## P5 - Shared map code (2026-10-01)
+- Done: apps/web/src/map/map-config.ts (MAP_HEIGHT_CLASSES, TILE_URL, TILE_MAX_ZOOM,
+  TILE_ATTRIBUTION, SEARCH_AREA_COLOUR, SEARCH_AREA_DASH) and apps/web/src/map/geometry.ts
+  (circleBounds(centre, radiusMetres), toLeaflet, toLeafletBounds; Leaflet imported for types
+  only). segment-map-features.ts builds its SearchAreaCircle with circleBounds; SegmentMap.tsx and
+  SegmentMapPanel.tsx import the shared pieces from map/. The SearchAreaCircle type stays in
+  segment-map-features.ts (it's the Segment map's feature shape).
+- Verified: pnpm typecheck, lint, test (shared 238, web 151, api 421), test:e2e (43) all pass.
+  The circle-bounds maths test moved to map/geometry.test.ts; segmentMapFeatures' circle test now
+  checks centre, radius and bounds equal circleBounds(...). pnpm build: main entry
+  index-*.js 372,373 bytes before, 372,510 after (+137 B); `_leaflet_id` appears only in the
+  SegmentMap chunk (0 in the main entry). No MCP click-through: no behaviour or UI change, and
+  every existing e2e passes unchanged.
+- Notes: P7's SearchAreaMap.tsx should import from map/map-config.ts and map/geometry.ts.

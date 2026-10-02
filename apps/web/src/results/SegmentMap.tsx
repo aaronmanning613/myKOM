@@ -16,30 +16,32 @@ import {
   TileLayer,
   useMap,
 } from 'react-leaflet';
+import { toLeaflet, toLeafletBounds } from '../map/geometry';
+import {
+  MAP_HEIGHT_CLASSES,
+  SEARCH_AREA_COLOUR,
+  SEARCH_AREA_DASH,
+  TILE_ATTRIBUTION,
+  TILE_MAX_ZOOM,
+  TILE_URL,
+} from '../map/map-config';
 import { formatDistance, formatGrade, Predicted, StravaLink } from './ResultsSection';
 import {
   ARROW_SIZE,
   FINISH_COLOUR,
   LIST_COLOURS,
   LOOP_RING_RADIUS,
-  MAP_HEIGHT_CLASSES,
   MARKER_RADIUS,
   ROUTE_WEIGHT,
-  SEARCH_AREA_COLOUR,
-  SEARCH_AREA_DASH,
   segmentMapFeatures,
   START_COLOUR,
   START_OUTLINE_COLOUR,
   START_RADIUS,
   START_ZOOM,
-  TILE_ATTRIBUTION,
-  TILE_MAX_ZOOM,
-  TILE_URL,
   type SearchAreaCircle,
   type SegmentMapFeature,
   type SegmentMapSelection,
 } from './segment-map-features';
-import type { BoundingBox, LatLng } from '@mykom/shared';
 
 /** A little room around the Search Area circle, so its edge isn't on the map's border. */
 const FIT_OPTIONS: L.FitBoundsOptions = { padding: [12, 12] };
@@ -60,12 +62,6 @@ const POPUP_PAN_PADDING_TOP_LEFT: L.PointTuple = [5, 80];
  */
 const ARROW_PANE = 'segmentMapArrows';
 const ENDS_PANE = 'segmentMapEnds';
-
-const toLeaflet = ({ lat, lng }: LatLng): L.LatLngTuple => [lat, lng];
-const toLeafletBounds = (box: BoundingBox): L.LatLngBoundsExpression => [
-  [box.minLat, box.minLng],
-  [box.maxLat, box.maxLng],
-];
 
 /**
  * Fits the map to the Search Area on first render and whenever its centre or radius changes,

@@ -1,5 +1,6 @@
 import { encodePolyline, type ResultRow, type Results } from '@mykom/shared';
 import { describe, expect, it } from 'vitest';
+import { circleBounds } from '../map/geometry';
 import { routeMarkers } from './route-markers';
 import { segmentMapFeatures } from './segment-map-features';
 
@@ -88,11 +89,7 @@ describe('segmentMapFeatures', () => {
     const { searchArea: circle } = features([]);
     expect(circle.centre).toEqual({ lat: 45.42, lng: -75.69 });
     expect(circle.radiusMetres).toBe(2000);
-    // 2 km is about 0.018° of latitude, and more degrees of longitude away from the equator.
-    expect(circle.bounds.maxLat - 45.42).toBeCloseTo(0.018, 3);
-    expect(45.42 - circle.bounds.minLat).toBeCloseTo(0.018, 3);
-    expect(circle.bounds.maxLng - -75.69).toBeCloseTo(0.018 / Math.cos((45.42 * Math.PI) / 180), 3);
-    expect(-75.69 - circle.bounds.minLng).toBeCloseTo(circle.bounds.maxLng - -75.69, 9);
+    expect(circle.bounds).toEqual(circleBounds({ lat: 45.42, lng: -75.69 }, 2000));
   });
 
   it('bounds a route by its box and a start point by itself', () => {
