@@ -24,7 +24,7 @@ Web app that uses your Strava data to find the best KOMs to hunt in your area
    cp .env.example .env
    ```
 
-   For place and postcode search, also set `NOMINATIM_USER_AGENT` to something that names the app and gives your contact, e.g. `myKOM/0.1 (you@example.com)`: [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/) requires it. Without it, place search replies 503. The API calls Nominatim at most once a second and caches every search in the `geocode_cache` table.
+   For place and postcode search, also set `NOMINATIM_USER_AGENT` to something that names the app and gives your contact, e.g. `myKOM/0.1 (you@example.com)`: [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/) requires it. Without it, place search and reverse geocoding reply 503. The API calls Nominatim at most once a second and caches every search and reverse lookup in the `geocode_cache` table.
 
    For the IP-location fallback behind "Use my location" (optional), see [IP location](#ip-location) below.
 
@@ -84,7 +84,11 @@ Outside production, `GET /api/debug/segments` (signed in) lists every Known Segm
 
 ### The Segment map
 
-The Results page draws Your targets and Nearest misses on a Leaflet map (a lazily loaded chunk), using only stored geometry: a Segment's full route when its polyline is stored, otherwise its start point. It never fetches geometry from Strava. Tiles come from OpenStreetMap's standard tile server (`tile.openstreetmap.org`, no API key), attributed to OpenStreetMap contributors, which myKOM's handful of Runners keeps well within the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+The Results page draws Your targets and Nearest misses on a Leaflet map (a lazily loaded chunk), using only stored geometry: a Segment's full route when its polyline is stored, otherwise its start point. It never fetches geometry from Strava. Each results list shows its top 20 Segments, with a "Show N more" button for the next 20 (paging is client-side; the API still returns every row), and the map draws only the rows the lists are showing. "Show more" adds Segments to the map without moving the view. Every route has a green start, a black finish (a ring when the route ends within 25 m of its start) and a direction arrow at its halfway point. A Segment known only by its start point is a single dot in its list's colour.
+
+The Search Area page has a map too (its own lazy chunk; the form works without it). It shows the chosen centre as an orange pin with the radius drawn around it. Tapping or clicking the map drops the pin, and dragging it fine-tunes it. The centre is labelled "Dropped pin" straight away, then gets a place name from `GET /api/geocode/reverse`, which goes through the same 1 request per second Nominatim throttle and `geocode_cache` as place search. A place search, "Use my location" or a radius change moves the pin and refits the map; a drop or drag leaves the view where it is.
+
+Tiles come from OpenStreetMap's standard tile server (`tile.openstreetmap.org`, no API key), attributed to OpenStreetMap contributors, which myKOM's handful of Runners keeps well within the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Leaflet stays out of the main bundle: both maps' chunks share it.
 
 ### Deploying
 

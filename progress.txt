@@ -187,3 +187,40 @@
   (leaflet-src.js:4827) calls _onZoomTransitionEnd on the removed map. Tests still pass. A fix
   would need a Leaflet internal (e.g. clearing _animatingZoom on unmount) or zoomAnimation off;
   left for a deliberate decision, and P9's "no console errors" check may hit it.
+
+## P9 - Full pass (2026-10-01) - BLOCKED, not ticked
+- Done: README's "The Segment map" covers paged lists, the start/finish/arrow markers, the
+  Search Area map and reverse geocoding (same 1/s throttle and geocode_cache), and setup step 2
+  says NOMINATIM_USER_AGENT also gates reverse geocoding. No code changes.
+- Verified: pnpm typecheck, lint, test (shared 238, web 156, api 445), test:e2e (51) and build
+  all pass. Build: main entry index-*.js 374.46 kB (gzip 115.83 kB) with 0 `_leaflet_id`; Leaflet
+  is only in the shared TileLayer-*.js (153.28 kB, gzip 44.84 kB; CSS 15.09 kB); SegmentMap-*.js
+  6.38 kB and SearchAreaMap-*.js 2.28 kB have none.
+  MCP click-through on `pnpm dev:live` as the real Runner (allowance {reads: 10} set before
+  opening Results; counter 1990 -> 1990, 0 reads). Results (Live smoke test run start, 1 km; no
+  search, radius untouched): 7 targets, 0 Nearest misses, 12 Suspicious records, so no list
+  reaches 20 and "Show more" can't appear live (e2e covers it); map section data-segment-count 7,
+  7 routes with 7 green starts, 7 black finishes (#111827, all filled: no loops in this area, e2e
+  covers the ring) and 7 arrows. Every arrow agrees with its route's start -> finish heading and
+  with the Strava names ("Up Gore Vale" 343°, "Bomb Down Bathurst" south toward the lake,
+  "Coronation Park to Trinity Bellwoods" 314°). "View on Strava" opens strava.com/segments/
+  23596613, but Strava shows only a log-in wall to the signed-out MCP browser, so I couldn't
+  compare with Strava's own map. At 375 px, clicking a finish opened the popup with "Starts at
+  the green dot, finishes at the black one", no overflow. Search Area page (never saved; GET
+  /api/search-area unchanged after): pin at the saved centre; 1 -> 5 -> 1 km refits (zoom 14 ->
+  12 -> 14) and resizes the circle; a click drops the pin ("Dropped pin (finding the place name…)"
+  then "Dropped pin") and a drag moves it, zoom held at 14, no alert. On an emulated touch phone
+  (375 px, isMobile/hasTouch): a swipe outside the map scrolled the page 254 px, a tap dropped the
+  pin, no overflow. Console: only the pre-sign-in /api/me 401 and the reverse-geocode 503s.
+- BLOCKED: `.env` has no NOMINATIM_USER_AGENT (the API logs "place search is unavailable"), so
+  GET /api/geocode and /api/geocode/reverse reply 503 under dev:live. P9's "a real postcode
+  search moves the pin" and "a real reverse lookup labels it" can't be checked. I tried to start
+  dev:live with a session-only NOMINATIM_USER_AGENT="myKOM-dev/0.1 (https://github.com/
+  aaronmanning613/myKOM)" (process.loadEnvFile doesn't override it), but the command needed
+  approval and wasn't granted.
+  Human: either add `NOMINATIM_USER_AGENT=myKOM/0.1 (<your contact>)` to .env, or approve
+  running `NOMINATIM_USER_AGENT="…" pnpm dev:live`. Then rerun the loop: the next iteration only
+  needs the Search Area page's real postcode search and a real reverse lookup on a dropped pin
+  (no save, a handful of Nominatim calls), then can tick P9.
+- Notes: P8's Leaflet `_leaflet_pos` error (pick + save within 250 ms) didn't show up here, since
+  the live pass never saves.
