@@ -231,3 +231,24 @@
   can't be checked. Stopped the servers; no code changes.
 - Human: same as above. Add `NOMINATIM_USER_AGENT=myKOM/0.1 (<your contact>)` to .env (or approve
   running `NOMINATIM_USER_AGENT="…" pnpm dev:live`), then rerun the loop.
+
+## P9 - Full pass, unblocked (2026-10-01)
+- Done: retried the blocked step. `pnpm dev:live` no longer logs the NOMINATIM_USER_AGENT warning,
+  so place search and reverse geocoding are live. Finished the Search Area page's live checks; the
+  rest of P9 (Results, radius refits, touch scrolling, README) was done in the first P9 pass. No
+  code changes.
+- Verified: MCP click-through as the real Runner (signed in through /api/test/login-live; Search
+  Area page only, never saved). At 1280 px: a real search for "M5V 3L9" chose the first match at
+  once and moved the pin to 43.64208, -79.38531 ("Centre: M5V 3L9, Toronto, Ontario, Canada"); a
+  map click showed "Dropped pin (finding the place name…)", then the real reverse label
+  "Harbourfront-CityPlace, Downtown, Toronto, …", with zoom held at 14 and no alert; dragging the
+  pin relabelled it "Blue Jays Way, Harbourfront-CityPlace, …", zoom still 14. At 375 px: "M6J 1H1"
+  moved the pin, and a dropped pin was labelled "Wolseley Street, Trinity-Bellwoods, …", with no
+  overflow. That's 2 searches and 3 reverse lookups through the throttled API. GET /api/search-area
+  was still "Live smoke test run start" (43.63875, -79.41262, 1 km) afterwards. Console: only the
+  pre-sign-in /api/me 401. No Strava reads beyond the sign-in's athlete read.
+  pnpm typecheck, lint, test (shared 238, web 156, api 445), test:e2e (51) and build all pass.
+  Build: main entry index-*.js 374.46 kB (gzip 115.83 kB) with 0 `_leaflet_id`; Leaflet is only in
+  TileLayer-*.js (153.28 kB, gzip 44.84 kB); SegmentMap-*.js 6.38 kB, SearchAreaMap-*.js 2.28 kB.
+- Notes: P8's Leaflet `_leaflet_pos` error (a place pick then Save within 250 ms) is still open and
+  needs a deliberate decision; it never appeared in the live pass.

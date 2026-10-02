@@ -299,7 +299,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Wrap-up
 
-- [ ] **P9** Full pass:
+- [x] **P9** Full pass:
   - `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm build`. Record in progress.txt the main entry chunk's size and every chunk containing Leaflet (`_leaflet_id`), and confirm the main entry has none;
   - a final MCP click-through as the real Runner (`pnpm dev:live`), at desktop and 375 px:
     - **Results**, against the saved Search Area. Don't start a new search or change the radius, and cap reads with `POST /api/test/live-read-allowance` as M6 did, using at most **10 Strava reads**, checked through the usage counters before and after. Check:
