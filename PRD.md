@@ -245,7 +245,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - `pnpm build` shows Leaflet still outside the main entry chunk (grep the main entry for `_leaflet_id`);
     - the main entry's size is within 1 kB of what it was before the refactor. Build once before starting, and record both sizes in progress.txt.
 
-- [ ] **P6** Reverse geocoding API:
+- [x] **P6** Reverse geocoding API:
   - in `packages/shared`, add the `ReverseGeocodeResponse` type;
   - in `nominatim.ts`, add `reverse(lat, lng)` (shared throttle, cache key, `zoom=16`, `null` on Nominatim's error body), and `GET /api/geocode/reverse` in `geocode/routes.ts`, as in Decisions → Reverse geocoding;
   - in `apps/web/src/search-area/api.ts`, add `searchAreaApi.reverseGeocode(lat, lng, signal?)`.

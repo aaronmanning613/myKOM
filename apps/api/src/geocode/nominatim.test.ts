@@ -1,10 +1,13 @@
 import type { GeocodeResult } from '@mykom/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  NOMINATIM_INTERVAL_MS,
   NOMINATIM_RESULT_LIMIT,
+  NOMINATIM_REVERSE_URL,
   NOMINATIM_SEARCH_URL,
   createNominatimClient,
   normaliseQuery,
+  reverseCacheKey,
   type GeocodeCache,
 } from './nominatim.js';
 import { createThrottle } from './throttle.js';
@@ -184,5 +187,98 @@ describe('createNominatimClient', () => {
       name: 'GeocodeError',
       message: expect.stringMatching(/fetch failed/),
     });
+  });
+});
+
+describe('reverse', () => {
+  const headingley = {
+    place_id: 2,
+    lat: '53.8189',
+    lon: '-1.5806',
+    display_name: 'Headingley, Leeds, West Yorkshire, England, United Kingdom',
+  };
+  const headingleyResult = {
+    label: 'Headingley, Leeds, West Yorkshire, England, United Kingdom',
+    lat: 53.8189,
+    lng: -1.5806,
+  };
+
+  it('asks Nominatim at street level with rounded coordinates and the User-Agent', async () => {
+    const { client, fetch } = setup({ response: () => Response.json(headingley) });
+    await expect(client.reverse(53.818876, -1.580649)).resolves.toEqual(headingleyResult);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, init] = fetch.mock.calls[0]!;
+    const sent = new URL(String(url));
+    expect(`${sent.origin}${sent.pathname}`).toBe(NOMINATIM_REVERSE_URL);
+    expect(Object.fromEntries(sent.searchParams)).toEqual({
+      lat: '53.8189',
+      lon: '-1.5806',
+      zoom: '16',
+      format: 'jsonv2',
+    });
+    expect(new Headers(init?.headers).get('User-Agent')).toBe(USER_AGENT);
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('maps "Unable to geocode" to null and caches it as an empty list', async () => {
+    const { client, cache, fetch } = setup({
+      response: () => Response.json({ error: 'Unable to geocode' }),
+    });
+    await expect(client.reverse(0, -30)).resolves.toBeNull();
+    expect(cache.map.get(reverseCacheKey(0, -30))).toEqual([]);
+    await expect(client.reverse(0.00001, -30)).resolves.toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('caches under a tab-prefixed key, so a search never reads it', async () => {
+    const { client, cache, fetch } = setup({ response: () => Response.json(headingley) });
+    await client.reverse(1.00001, 2.00004);
+    expect([...cache.map.keys()]).toEqual(['\treverse:1,2']);
+    expect(normaliseQuery('\treverse:1,2')).not.toBe(reverseCacheKey(1, 2));
+
+    fetch.mockImplementation(async () => Response.json([]));
+    await expect(client.search('reverse:1,2')).resolves.toEqual([]);
+    expect(cache.get).toHaveBeenLastCalledWith('reverse:1,2');
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('never writes -0 into the key', async () => {
+    const { client, cache } = setup({ response: () => Response.json(headingley) });
+    await client.reverse(-0.00001, -0.00002);
+    expect([...cache.map.keys()]).toEqual(['\treverse:0,0']);
+  });
+
+  it('maps a malformed place to null', async () => {
+    const { client } = setup({ response: () => Response.json({ lat: '1', lon: '2' }) });
+    await expect(client.reverse(1, 2)).resolves.toBeNull();
+  });
+
+  it.each([
+    ['a non-2xx response', () => new Response('busy', { status: 500 }), /500/],
+    ['an unreadable body', () => new Response('<html>', { status: 200 }), /unreadable/],
+    ['an array body', () => Response.json([headingley]), /unexpected/],
+  ])('throws a GeocodeError on %s and caches nothing', async (_name, response, message) => {
+    const { client, cache } = setup({ response });
+    await expect(client.reverse(1, 2)).rejects.toThrow(message);
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('shares the throttle with search', async () => {
+    vi.useFakeTimers();
+    const { client, fetch } = setup({ throttle: createThrottle(NOMINATIM_INTERVAL_MS) });
+    fetch.mockImplementation(async (url) =>
+      Response.json(String(url).startsWith(NOMINATIM_REVERSE_URL) ? headingley : []),
+    );
+    const lookups = Promise.all([client.search('Leeds'), client.reverse(53.8, -1.5)]);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(NOMINATIM_INTERVAL_MS - 1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(String(fetch.mock.calls[1]![0])).toContain(NOMINATIM_REVERSE_URL);
+    await lookups;
   });
 });

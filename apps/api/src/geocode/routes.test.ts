@@ -1,8 +1,13 @@
-import { MAX_GEOCODE_QUERY_LENGTH, type GeocodeResponse } from '@mykom/shared';
+import {
+  MAX_GEOCODE_QUERY_LENGTH,
+  type GeocodeResponse,
+  type ReverseGeocodeResponse,
+} from '@mykom/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { SESSION_COOKIE } from '../auth/session.js';
 import { geocodeCache, runners } from '../db/schema.js';
+import { NOMINATIM_REVERSE_URL, reverseCacheKey } from './nominatim.js';
 import { buildTestApp, useTestDatabase } from '../test/app.js';
 
 const database = useTestDatabase();
@@ -123,6 +128,138 @@ describe('GET /api/geocode', () => {
       query: { q: 'Leeds' },
       cookies: await signIn(bare),
     });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: 'geocode_unavailable' });
+    await bare.close();
+  });
+});
+
+/** A point (4 dp) no other test run has cached, plus `extra` digits below the cache's rounding. */
+function uniquePoint(extra = '') {
+  const lat = (Math.floor(Math.random() * 1_600_000) / 10_000 - 80).toFixed(4);
+  const lng = (Math.floor(Math.random() * 3_400_000) / 10_000 - 170).toFixed(4);
+  cachedQueries.push(reverseCacheKey(Number(lat), Number(lng)));
+  return { lat: `${lat}${extra}`, lng: `${lng}${extra}` };
+}
+
+const reverse = (query: Record<string, string>, cookies?: Record<string, string>, target = app) =>
+  target.inject({ method: 'GET', url: '/api/geocode/reverse', query, cookies });
+
+const headingleyPlace = {
+  lat: '53.8189',
+  lon: '-1.5806',
+  display_name: 'Headingley, Leeds, West Yorkshire, England, United Kingdom',
+};
+const headingley = {
+  label: 'Headingley, Leeds, West Yorkshire, England, United Kingdom',
+  lat: 53.8189,
+  lng: -1.5806,
+};
+
+describe('GET /api/geocode/reverse', () => {
+  it('is 401 when signed out, without calling Nominatim', async () => {
+    const res = await reverse(uniquePoint());
+    expect(res.statusCode).toBe(401);
+    expect(nominatimFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a missing lat', { lng: '0' }],
+    ['a missing lng', { lat: '0' }],
+    ['a non-numeric lat', { lat: 'north', lng: '0' }],
+    ['a non-numeric lng', { lat: '0', lng: '1e' }],
+    ['a lat above 90', { lat: '90.1', lng: '0' }],
+    ['a lat below -90', { lat: '-90.1', lng: '0' }],
+    ['a lng above 180', { lat: '0', lng: '180.1' }],
+    ['a lng below -180', { lat: '0', lng: '-180.1' }],
+  ])('rejects %s with 400', async (_name, query) => {
+    const res = await reverse(query, await signIn());
+    expect(res.statusCode).toBe(400);
+    expect(nominatimFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns the place, asking Nominatim at street level with coordinates rounded to 4 dp', async () => {
+    nominatimFetch.mockResolvedValue(Response.json(headingleyPlace));
+    const point = uniquePoint('2');
+    const res = await reverse(point, await signIn());
+    expect(res.statusCode).toBe(200);
+    expect(res.json<ReverseGeocodeResponse>()).toEqual({ result: headingley });
+
+    expect(nominatimFetch).toHaveBeenCalledOnce();
+    const [url, init] = nominatimFetch.mock.calls[0]!;
+    const sent = new URL(String(url));
+    expect(`${sent.origin}${sent.pathname}`).toBe(NOMINATIM_REVERSE_URL);
+    expect(Object.fromEntries(sent.searchParams)).toEqual({
+      lat: String(Number(point.lat.slice(0, -1))),
+      lon: String(Number(point.lng.slice(0, -1))),
+      zoom: '16',
+      format: 'jsonv2',
+    });
+    expect(new Headers(init?.headers).get('User-Agent')).toBe('myKOM-tests');
+  });
+
+  it('is { result: null } for "Unable to geocode", and caches that null', async () => {
+    const cookies = await signIn();
+    const point = uniquePoint();
+    nominatimFetch.mockResolvedValue(Response.json({ error: 'Unable to geocode' }));
+    const res = await reverse(point, cookies);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ result: null });
+
+    const repeat = await reverse(point, cookies);
+    expect(repeat.json()).toEqual({ result: null });
+    expect(nominatimFetch).toHaveBeenCalledOnce();
+  });
+
+  it('serves a repeat, or a point differing only in the 5th decimal, from geocode_cache', async () => {
+    const cookies = await signIn();
+    const point = uniquePoint();
+    nominatimFetch.mockResolvedValue(Response.json(headingleyPlace));
+    await reverse(point, cookies);
+    expect(nominatimFetch).toHaveBeenCalledOnce();
+
+    const [row] = await db
+      .select()
+      .from(geocodeCache)
+      .where(eq(geocodeCache.query, reverseCacheKey(Number(point.lat), Number(point.lng))));
+    expect(row?.results).toEqual([headingley]);
+
+    expect((await reverse(point, cookies)).json()).toEqual({ result: headingley });
+    const nudged = { lat: `${point.lat}3`, lng: `${point.lng}4` };
+    expect((await reverse(nudged, cookies)).json()).toEqual({ result: headingley });
+    expect(nominatimFetch).toHaveBeenCalledOnce();
+  });
+
+  it("doesn't let a search for the key's text read the reverse entry", async () => {
+    const cookies = await signIn();
+    cachedQueries.push(reverseCacheKey(1, 2), 'reverse:1,2');
+    nominatimFetch.mockResolvedValue(Response.json(headingleyPlace));
+    expect((await reverse({ lat: '1', lng: '2' }, cookies)).json()).toEqual({ result: headingley });
+
+    nominatimFetch.mockReset();
+    nominatimFetch.mockResolvedValue(Response.json([]));
+    const res = await geocode('reverse:1,2', cookies);
+    expect(res.json()).toEqual({ results: [] });
+    expect(nominatimFetch).toHaveBeenCalledOnce();
+  });
+
+  it('is 502 when Nominatim fails, and caches nothing', async () => {
+    const cookies = await signIn();
+    const point = uniquePoint();
+    nominatimFetch.mockResolvedValue(new Response('oops', { status: 500 }));
+    const res = await reverse(point, cookies);
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toEqual({ error: 'geocode_failed' });
+    const rows = await db
+      .select()
+      .from(geocodeCache)
+      .where(eq(geocodeCache.query, reverseCacheKey(Number(point.lat), Number(point.lng))));
+    expect(rows).toEqual([]);
+  });
+
+  it('is 503 without a Nominatim client', async () => {
+    const { app: bare } = buildTestApp(database, { testRoutes: true, nominatim: false });
+    const res = await reverse(uniquePoint(), await signIn(bare), bare);
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ error: 'geocode_unavailable' });
     await bare.close();

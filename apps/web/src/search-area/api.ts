@@ -1,5 +1,5 @@
 // Requests behind the Search Area and Results pages: the saved area, searching and its
-// results, place search, the IP fallback and Mapped Areas.
+// results, place search, reverse geocoding, the IP fallback and Mapped Areas.
 import type {
   GeocodeResponse,
   LocateIpResponse,
@@ -7,6 +7,7 @@ import type {
   MappedAreaCreate,
   MappedAreasResponse,
   Results,
+  ReverseGeocodeResponse,
   SearchAreaResponse,
   SearchAreaUpdate,
 } from '@mykom/shared';
@@ -55,6 +56,13 @@ export const searchAreaApi = {
   geocode: (q: string) =>
     request<GeocodeResponse>(`/api/geocode?${new URLSearchParams({ q })}`, (body) =>
       Array.isArray(body.results),
+    ),
+  /** The place name at a point, or `{ result: null }` when there's none. */
+  reverseGeocode: (lat: number, lng: number, signal?: AbortSignal) =>
+    request<ReverseGeocodeResponse>(
+      `/api/geocode/reverse?${new URLSearchParams({ lat: String(lat), lng: String(lng) })}`,
+      (body) => 'result' in body,
+      { signal },
     ),
   locateIp: () =>
     request<LocateIpResponse>('/api/locate-ip', (body) => typeof body.available === 'boolean'),

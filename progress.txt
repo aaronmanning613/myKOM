@@ -109,3 +109,23 @@
   SegmentMap chunk (0 in the main entry). No MCP click-through: no behaviour or UI change, and
   every existing e2e passes unchanged.
 - Notes: P7's SearchAreaMap.tsx should import from map/map-config.ts and map/geometry.ts.
+
+## P6 - Reverse geocoding API (2026-10-01)
+- Done: shared `ReverseGeocodeResponse` ({ result: GeocodeResult | null }). NominatimClient gains
+  reverse(lat, lng): rounds both to 4 dp (with -0 normalised to 0), keys the cache
+  `\treverse:<lat>,<lng>` (exported as reverseCacheKey), asks /reverse with format=jsonv2 and
+  zoom=16, and goes through the same throttle and cache wrapper as search (`cached`, with the
+  shared fetchJson). `{ "error": … }` → null, cached as []; a malformed place → null; a non-object
+  body → GeocodeError. GET /api/geocode/reverse (lat in [-90, 90], lng in [-180, 180], numbers,
+  via the querystring schema) mirrors GET /api/geocode: 401, 503 without a client, 502 on a
+  GeocodeError. Web: searchAreaApi.reverseGeocode(lat, lng, signal?).
+- Verified: pnpm typecheck, lint, test (shared 238, web 151, api 445), test:e2e (43) all pass.
+  New tests: nominatim.test.ts reverse (URL/params/User-Agent, error body → null and cached,
+  tab-prefixed key a search never reads, -0, malformed, 500/unreadable/array errors, and a
+  search + reverse back-to-back NOMINATIM_INTERVAL_MS apart with fake timers); routes.test.ts
+  (shape and 4 dp rounding in the request, null cached, repeat and 5th-decimal hits from
+  geocode_cache, a search for "reverse:1,2" misses the reverse entry, eight 400 cases, 401, 502
+  caching nothing, 503). No UI, so no MCP click-through.
+- Notes: route tests use random 4 dp points and clean their geocode_cache rows in afterAll.
+  Stubbing nominatimFetch with mockResolvedValue reuses one Response, whose body can be read only
+  once, so a test needing two fetches must reset and re-stub between them.

@@ -12,3 +12,8 @@ export type GeocodeResult = {
 export type GeocodeResponse = {
   results: GeocodeResult[];
 };
+
+/** What `GET /api/geocode/reverse?lat=&lng=` returns: the place at a point, or null (e.g. at sea). */
+export type ReverseGeocodeResponse = {
+  result: GeocodeResult | null;
+};
