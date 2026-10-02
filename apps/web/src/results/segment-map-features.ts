@@ -9,6 +9,7 @@ import {
   type ResultRow,
   type Results,
 } from '@mykom/shared';
+import { routeMarkers, type RouteMarkers } from './route-markers';
 
 export const TARGET_COLOUR = '#ea580c';
 export const NEAREST_MISS_COLOUR = '#2563eb';
@@ -16,8 +17,17 @@ export const SEARCH_AREA_COLOUR = '#6b7280';
 export const SEARCH_AREA_DASH = '6 6';
 /** A route's line, in px. */
 export const ROUTE_WEIGHT = 4;
-/** The small filled circle at a route's start, in px. */
-export const ROUTE_START_RADIUS = 4;
+/** A route's start marker. */
+export const START_COLOUR = '#16a34a';
+/** A route's finish marker. */
+export const FINISH_COLOUR = '#111827';
+/** A route's start and finish circles, in px. */
+export const MARKER_RADIUS = 6;
+/** A loop's finish, drawn as a ring around its start, in px. */
+export const LOOP_RING_RADIUS = 9;
+/** The direction arrow's icon, in px square. */
+export const ARROW_SIZE = 16;
+export { LOOP_THRESHOLD_METRES } from './route-markers';
 /** A start-only Segment's circle, in px. */
 export const START_RADIUS = 7;
 export const START_OUTLINE_COLOUR = '#ffffff';
@@ -39,7 +49,8 @@ export const LIST_COLOURS: Record<SegmentMapList, string> = {
   nearestMisses: NEAREST_MISS_COLOUR,
 };
 
-export type SegmentShape = { kind: 'route'; points: LatLng[] } | { kind: 'start'; point: LatLng };
+export type SegmentShape =
+  { kind: 'route'; points: LatLng[]; markers: RouteMarkers } | { kind: 'start'; point: LatLng };
 
 export type SegmentMapFeature = {
   segmentId: number;
@@ -92,7 +103,9 @@ export function segmentMapFeatures(
 function segmentFeature(row: ResultRow, list: SegmentMapList): SegmentMapFeature {
   const points = routePoints(row.polyline);
   const shape: SegmentShape =
-    points === null ? { kind: 'start', point: row.start } : { kind: 'route', points };
+    points === null
+      ? { kind: 'start', point: row.start }
+      : { kind: 'route', points, markers: routeMarkers(points) };
   const bounds = boundingBoxOf(points ?? [row.start]) as BoundingBox;
   return { segmentId: row.segmentId, list, shape, bounds, row };
 }

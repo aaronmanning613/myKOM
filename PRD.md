@@ -200,7 +200,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Start and finish
 
-- [ ] **P3** Route-marker geometry as a pure module:
+- [x] **P3** Route-marker geometry as a pure module:
   - `apps/web/src/results/route-markers.ts`, with `routeMarkers(points)`, returns:
     - `start` and `finish` (the first and last points);
     - `loop` (start–finish distance ≤ `LOOP_THRESHOLD_METRES`, 25 m, by haversine);

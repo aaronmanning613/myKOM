@@ -53,3 +53,18 @@
   works, no overflow, no console errors beyond the pre-sign-in /api/me 401.
 - Notes: the e2e compares the circle's box relative to the map section, rounded to whole
   pixels (scrolling to the button shifts raw rects by sub-pixel float error).
+
+## P3 - Route-marker geometry as a pure module (2026-10-01)
+- Done: apps/web/src/results/route-markers.ts: routeMarkers(points) → { start, finish, loop,
+  arrow: { point, bearingDegrees } }, using shared distanceKm (haversine) for lengths, skipping
+  zero-length legs, interpolating linearly within the leg holding the halfway point, and the
+  leg's initial great-circle bearing in [0, 360). LOOP_THRESHOLD_METRES (25) lives there and is
+  re-exported from segment-map-features.ts (avoids an import cycle). The route SegmentShape now
+  carries `markers`. New constants START_COLOUR, FINISH_COLOUR, MARKER_RADIUS, LOOP_RING_RADIUS,
+  ARROW_SIZE replace ROUTE_START_RADIUS.
+- Verified: pnpm typecheck, lint, test (shared 238, web 148, api 421), test:e2e (41) all pass.
+  New unit tests: midpoint + east/north/south/west bearings, an L whose halfway is in leg 2,
+  repeated points, a zero-length route, loop vs non-loop either side of 25 m, and
+  segmentMapFeatures attaching markers to routes only.
+- Notes: no UI work beyond SegmentMap.tsx's interim start dot using MARKER_RADIUS (6 px, was
+  4) in the list colour; P4 restyles it green and adds finish and arrow.

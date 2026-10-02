@@ -18,7 +18,7 @@ import { formatDistance, formatGrade, Predicted, StravaLink } from './ResultsSec
 import {
   LIST_COLOURS,
   MAP_HEIGHT_CLASSES,
-  ROUTE_START_RADIUS,
+  MARKER_RADIUS,
   ROUTE_WEIGHT,
   SEARCH_AREA_COLOUR,
   SEARCH_AREA_DASH,
@@ -168,7 +168,7 @@ function SegmentLayer({
           />
           <CircleMarker
             center={toLeaflet(shape.points[0]!)}
-            radius={ROUTE_START_RADIUS}
+            radius={MARKER_RADIUS}
             pathOptions={{
               color: colour,
               fillColor: colour,

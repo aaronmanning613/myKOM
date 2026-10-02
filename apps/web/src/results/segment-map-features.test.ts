@@ -1,5 +1,6 @@
 import { encodePolyline, type ResultRow, type Results } from '@mykom/shared';
 import { describe, expect, it } from 'vitest';
+import { routeMarkers } from './route-markers';
 import { segmentMapFeatures } from './segment-map-features';
 
 function row(segmentId: number, overrides: Partial<ResultRow> = {}): ResultRow {
@@ -46,7 +47,18 @@ const route = [
 describe('segmentMapFeatures', () => {
   it('draws a route when the polyline decodes to at least 2 points', () => {
     const [feature] = features([row(1, { polyline: encodePolyline(route) })]).segments;
-    expect(feature!.shape).toEqual({ kind: 'route', points: route });
+    expect(feature!.shape).toEqual({ kind: 'route', points: route, markers: routeMarkers(route) });
+  });
+
+  it('attaches start, finish and arrow markers to routes only', () => {
+    const [routed, startOnly] = features([
+      row(1, { polyline: encodePolyline(route) }),
+      row(2, { polyline: null }),
+    ]).segments;
+    expect(routed!.shape).toMatchObject({
+      markers: { start: route[0], finish: route[2], loop: false },
+    });
+    expect(startOnly!.shape).not.toHaveProperty('markers');
   });
 
   it.each([
