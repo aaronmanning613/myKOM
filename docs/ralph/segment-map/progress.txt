@@ -1,0 +1,159 @@
+# Ralph progress log: the Segment map
+#
+# The core loop's log is in docs/ralph/core/progress.txt and the foundation loop's in
+# docs/ralph/foundation/progress.txt. Their notes on tooling (pnpm build approvals, ESM .js
+# imports, live-test rules, dev:live, Playwright's substring role-name matching) still apply.
+#
+# Append one entry per iteration, newest at the bottom, in this shape:
+#
+# ## <task id> - <short title> (<date>)
+# - Done: what was built
+# - Verified: commands run and their result
+# - Notes: TODO(decision) items, blockers, anything the next iteration should know
+#
+
+## M1 - Geometry and the Strava URL in the results payload (2026-10-01)
+- Done: shared `stravaSegmentUrl(id)` (strava-url.ts); `ResultRow` gains `start` and `polyline`
+  (stored encoded string or null); `SegmentDetails` (KnownSegment.details) gains `polyline`, filled
+  by results/load.ts from `segments.polyline`; rank passes it through untouched.
+  `POST /api/test/segments` takes an optional encoded `polyline`, stored as is, with
+  end_lat/end_lng from its last point.
+- Verified: pnpm typecheck, lint, test (shared 238, web 107, api 421), test:e2e (33) all pass.
+  New tests: strava-url.test.ts; results/routes.test.ts and search/routes.test.ts check rows'
+  `start`/`polyline` (null when none stored); the search test runs the same search with and without
+  stored polylines and asserts the same Strava fetch count; test-routes.test.ts stores a polyline
+  (+ end point) and rejects an unknown field.
+- Notes: Fastify's Ajv runs with `removeAdditional: true`, so `additionalProperties: false`
+  silently STRIPS unknown fields rather than rejecting them (true of every route). The test
+  Segment items now use `additionalProperties: { not: {} }` to really reject (400). Other routes
+  are unchanged. Segments fetched by the fake Strava in api tests send `map.polyline: ''`, which
+  the client stores as null.
+
+## M2 - "View on Strava" in the lists (2026-10-01)
+- Done: `StravaLink` (exported from results/ResultsSection.tsx) under each row's distance ·
+  grade · km line: visible text "View on Strava", `aria-label="View <name> on Strava"`, href
+  from `stravaSegmentUrl`, `target="_blank"`, `rel="noopener noreferrer"`, bold, underlined,
+  `#FC5200`. It covers all three Results sections and the wizard's step 3.
+- Verified: pnpm typecheck, lint, test (shared 238, web 108, api 421), test:e2e (33) all pass.
+  New ResultsPage test checks href/target/rel/name/text for every row in all three sections;
+  the wizard test checks a step-3 link; the e2e results spec (desktop + 375 px) checks Canal
+  Dash's link against the segmentId from GET /api/results, and that the page doesn't overflow.
+  MCP click-through on `E2E=1 pnpm dev` with a seeded Runner at 1280 px and 375 px: links in all
+  three sections in Strava orange, bold; clicking opens a new tab; no overflow at 375 px; no
+  console errors beyond the pre-sign-in 401. No Strava reads.
+- Notes: /api/test/segments gives Segments random ids and replies 204, so e2e reads the ids
+  back from GET /api/results. M4/M5 can reuse `StravaLink` in the popup.
+
+## M3 - What to draw, as a pure module (2026-10-01)
+- Done: apps/web/src/results/segment-map-features.ts: `segmentMapFeatures(results)` returns
+  `{ searchArea: { centre, radiusMetres, bounds }, segments }`, one feature per Your targets then
+  Nearest misses row (deduped by segmentId, first kept; Suspicious records ignored), each with
+  `list`, `shape` (route when the polyline decodes to >= 2 points, else start), `bounds`
+  (shared BoundingBox) and the row. Exported constants: list colours, Search Area colour/dash,
+  ROUTE_WEIGHT 4, ROUTE_START_RADIUS 4, START_RADIUS 7, START_OUTLINE_COLOUR, START_ZOOM 16,
+  TILE_URL / TILE_MAX_ZOOM / TILE_ATTRIBUTION.
+- Verified: pnpm typecheck, lint, test (shared 238, web 119, api 421), test:e2e (33) all pass.
+  New segment-map-features.test.ts: route vs start (null, empty, 1-point, undecodable, and
+  off-the-Earth polylines fall back), Suspicious excluded, circle centre/radius/bounds, route and
+  start bounds, ordering, dedupe.
+- Notes: decodePolyline never throws; a garbled string decodes to 0 points or to coordinates
+  out of range, so routes also require every point within lat ±90 / lng ±180. The circle's
+  bounds use a spherical approximation (6,371 km), fine for fitBounds in M4. Search Area grey is
+  #6b7280 (gray-500); the route-start dot radius 4 is my pick for "small".
+
+## M4 - The map on the Results page (2026-10-01)
+- Done: leaflet 1.9.4, react-leaflet 5.0.0, @types/leaflet in apps/web. results/SegmentMap.tsx
+  (the lazy chunk; imports leaflet.css): OSM TileLayer, dashed grey non-interactive Search Area
+  Circle, per Segment a FeatureGroup with its Popup + either a Polyline (4 px) and a start dot
+  (r 4) or a start CircleMarker (r 7, white outline). classNames `segment-map-<id>` +
+  `segment-map-route` / `segment-map-start` (the route's start dot is `segment-map-route-start`).
+  scrollWheelZoom off, dragging = !L.Browser.mobile. FrameSearchArea fits on mount and when
+  centre/radius change only (12 px padding so the circle isn't on the border). Popup: crown +
+  name, Your target / Nearest miss, distance · grade, Record · Predicted · Your PB (reuses the
+  list's now-exported `Predicted`), "Start point only", StravaLink. results/SegmentMapPanel.tsx
+  (main bundle): React.lazy + same-height placeholder "Loading the map…", `<section
+  aria-label="Segment map" class="isolate">`, legend; `showsSegmentMap` = pending or any target /
+  Nearest miss. Placed just above Your targets. MAP_HEIGHT_CLASSES lives in
+  segment-map-features.ts so the panel doesn't import the chunk.
+  e2e: tests/fixtures.ts extends `test` with an auto `tiles` fixture (context.route answers
+  tile.openstreetmap.org/** with tests/blank-tile.png, records requested/served); every spec in
+  tests/ and live/ (and both sign-in helpers) imports test/expect from it, and an ESLint
+  no-restricted-imports rule bans value imports of @playwright/test in e2e/tests and e2e/live
+  (type imports allowed). New tests/segment-map.spec.ts seeds a route target, a start-only
+  target, a Nearest miss and a Suspicious record with a route (polylines via shared
+  encodePolyline; the M1 seeding route already took them).
+- Verified: pnpm typecheck, lint, test (shared 238, web 123, api 421), test:e2e (35) all pass.
+  New: SegmentMapPanel.test.tsx (placeholder at map height, then region + legend); ResultsPage
+  tests (map + legend above Your targets; no map with no rows and nothing pending, even with
+  Suspicious records; circle-only map while pending). segment-map.spec (desktop + 375 px):
+  route/start/nearest-miss elements, colours, none for the Suspicious record, popups with name,
+  "Start point only", View on Strava href/target/rel and Strava orange, all tile requests served
+  by the fixture, no overflow. MCP click-through on `E2E=1 pnpm dev` at 1280 and 375 px with real
+  OSM tiles: tiles and SVG overlay undistorted by preflight (svg 881x478 px = its attributes,
+  tiles 256 px), so no override added; radius change refits; no console errors or warnings.
+- Notes: Leaflet's `.leaflet-container a { color }` is unlayered CSS and beat the Tailwind
+  utility, so StravaLink's colour is now `text-[#FC5200]!`. Gotchas for M5's e2e: a closing popup
+  stays in the DOM for its 200 ms fade (locate popups by name, not `.leaflet-popup` alone); an
+  open popup can cover other markers (close it via its × button first); a perfectly level route
+  has a zero-height box, which Playwright calls not visible. jsdom renders the map without
+  errors (no Leaflet mocking needed). React.lazy caches the chunk per test file, so only the
+  first render in a file sees the placeholder.
+
+## M5 - "Show on map" from the list (2026-10-01)
+- Done: `ResultsSection` takes an optional `onShowOnMap(segmentId)`. When it's given, each row
+  gets a grey, underlined "Show on map" button next to "View on Strava" (aria-label "Show <name>
+  on map"). The two sit in a wrapping flex row, so they stack neatly at 375 px. ResultsView passes
+  it to Your targets and Nearest misses only; the wizard and Suspicious records get none. The
+  selection is lifted state in ResultsView: `SegmentMapSelection { segmentId, request }`, typed in
+  segment-map-features.ts. `request` counts the clicks, so clicking the same Segment again refits.
+  It's cleared when that Segment's popup closes (FeatureGroup `popupclose`, compared by id so
+  switching Segments doesn't clear the new one), or when a poll drops the Segment. The popup
+  closes on its own then, because its layer is removed. SegmentMapPanel scrolls itself into view
+  (`block: 'nearest', behavior: 'smooth'`). In SegmentMap, `ShowSelection` (rendered last, so
+  the layers are already on the map) fits the route's bounds (24 px padding) or does a
+  setView(start, 16) without animation, then calls openPopup on the Segment's FeatureGroup at
+  its start point. Popup auto-pan then does the rest. FeatureGroups are kept in a ref'd
+  Map<segmentId, FeatureGroup>.
+- Verified: pnpm typecheck, lint, test (shared 238, web 126, api 421) and test:e2e (37) all pass.
+  New tests: in ResultsPage.test, buttons in the two sections only, scrollIntoView called on the
+  map's panel, ResultsSection calling back with the id and having no button without the
+  callback; in WizardPage.test, no button in step 3. In segment-map.spec (desktop and 375 px),
+  the page is scrolled down first, then "Show on map" on the start-only target opens an
+  in-viewport popup with "Start point only" and the right link at zoom 16, and the next button
+  swaps the popup. MCP click-through on `E2E=1 pnpm dev` with real tiles at 1280 and 375 px:
+  scrolls back to the map, zooms in, the popup opens, close then re-click reopens it, there's no
+  overflow, and the only console error is the pre-sign-in 401.
+- Notes: the popup opens at the Segment's start, so on a route its auto-pan can nudge the far
+  end of the line just out of frame. At 260 px tall on phones, the popup's top can sit under
+  the +/− control. That's standard Leaflet, so I left it alone. "Show on map" is grey, not
+  orange, so it isn't confused with the Strava link.
+
+## M6 - Full pass (2026-10-01)
+- Done: README gains "The Segment map" (Leaflet chunk, stored geometry only, OSM tiles and the
+  usage policy) and a paragraph on the e2e tile fixture (e2e/tests/fixtures.ts, the ESLint ban,
+  the blank PNG). One fix from the click-through: at 260 px on phones, a popup's top sat under the
+  +/− control and hid the Segment's name, so popups now auto-pan with a top-left padding of
+  [5, 80] (POPUP_PAN_PADDING_TOP_LEFT in SegmentMap.tsx). With that, popups clear the control
+  (popup top at 81 px, control bottom at 75 px).
+- Verified: pnpm typecheck, lint, test (shared 238, web 126, api 421), test:e2e (37) and build
+  all pass, before and after the fix. Build chunks: main entry index-*.js 369.84 kB (gzip 114.26
+  kB); map chunk SegmentMap-*.js 156.50 kB (gzip 46.04 kB) plus SegmentMap-*.css 15.09 kB (gzip
+  6.36 kB). Leaflet's code (`_leaflet_id`) appears only in the map chunk.
+  MCP click-through on `pnpm dev:live` as the real Runner, against the saved Search Area (Live
+  smoke test run start, 1 km; no new search, radius untouched). Before opening Results I capped
+  the Runner with POST /api/test/live-read-allowance {reads: 8}, because 34 segment-detail jobs
+  were queued and the visit check was due. Counter 1992 -> 1995: 3 reads, plus the sign-in's
+  GET /athlete (not Runner-counted). At 1280 px: 12 real tiles loaded; 7 target routes on the
+  right streets (Gore Vale Ave through Trinity Bellwoods, Bathurst, Coronation Park and the
+  lakeshore). This area has no Nearest misses and no start-only Segments, so neither appears; e2e
+  covers both. The 12 Suspicious records aren't drawn and keep their links. Clicking a route opened
+  its popup (name, Your target, 438 m · 2.1%, Record/Predicted/PB), and its "View on Strava" opened
+  strava.com/segments/39068214 in a new tab. "Show on map" from a scrolled-down row scrolled back,
+  fitted the route and opened its popup. At 375 px: the map is 260 px tall, a wheel over it
+  scrolls the page (no zoom), and on an emulated iPhone (isMobile/hasTouch, L.Browser.mobile
+  true) a one-finger touch swipe on the map scrolled the page 201 px. "Show on map" works, with
+  no horizontal overflow. No console errors or warnings apart from a 404 for /favicon.ico.
+- Notes: the app has no favicon, so Chrome's automatic /favicon.ico request 404s in dev. That's
+  not map-related and adding one is a product choice, so I left it. Because of the allowance cap,
+  the real Runner's background work in mykom_e2e_live waits until the next UTC day, the same
+  side effect the live smoke test has. Every task in this PRD is now ticked.
