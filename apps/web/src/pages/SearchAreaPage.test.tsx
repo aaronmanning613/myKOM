@@ -72,6 +72,25 @@ const saveButton = () => screen.getByRole('button', { name: 'Save and see result
 const save = () => userEvent.click(saveButton());
 
 describe('Search Area', () => {
+  // First in the file, so the map's lazy chunk isn't loaded yet when the page renders.
+  it('shows a placeholder while the map loads, then the map and its hint', async () => {
+    const saved: SearchArea = { label: 'Leeds', lat: 53.8, lng: -1.55, radiusKm: 2 };
+    stubApi({ ...signedIn(), 'GET /api/search-area': () => json({ searchArea: saved }) });
+    renderPage();
+
+    const centre = within(await screen.findByRole('region', { name: 'Centre' }));
+    const placeholder = centre.getByText('Loading the map…');
+    expect(placeholder).toHaveClass('h-[260px]', 'sm:h-[400px]');
+    // The form never waits for the map.
+    expect(saveButton()).toBeEnabled();
+
+    expect(await centre.findByRole('region', { name: 'Search Area map' })).toBeInTheDocument();
+    expect(centre.queryByText('Loading the map…')).not.toBeInTheDocument();
+    expect(
+      centre.getByText('Tap or click the map to drop the pin, then drag it to fine-tune.'),
+    ).toBeVisible();
+  });
+
   it('restores the saved Search Area', async () => {
     const saved: SearchArea = { label: 'Leeds', lat: 53.8, lng: -1.55, radiusKm: 2 };
     stubApi({ ...signedIn(), 'GET /api/search-area': () => json({ searchArea: saved }) });
@@ -132,6 +151,31 @@ describe('Search Area', () => {
     expect(await screen.findByRole('heading', { name: 'Results' })).toBeVisible();
     expect(router.state.location.pathname).toBe('/results');
     expect(bodies).toEqual([{ ...places[1], radiusKm: 1 }]);
+  });
+
+  it('chooses the first place found at once, and another can still be picked', async () => {
+    const bodies: SearchAreaUpdate[] = [];
+    stubApi({
+      ...signedIn(),
+      'GET /api/geocode?q=SW1A+1AA': () => json({ results: places }),
+      'POST /api/search': echoSearch(bodies),
+    });
+    renderPage();
+
+    await userEvent.type(await screen.findByLabelText('Place or postcode'), 'SW1A 1AA{Enter}');
+    const found = await screen.findByRole('list', { name: 'Places found' });
+    expect(screen.getByTestId('chosen-centre')).toHaveTextContent(`Centre: ${places[0]!.label}`);
+    expect(within(found).getByRole('button', { name: /^London/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(saveButton()).toBeEnabled();
+
+    await userEvent.click(within(found).getByRole('button', { name: /^Buckingham Palace/ }));
+    expect(screen.getByTestId('chosen-centre')).toHaveTextContent(`Centre: ${places[1]!.label}`);
+    await save();
+    expect(await screen.findByRole('heading', { name: 'Results' })).toBeVisible();
+    expect(bodies).toEqual([{ ...places[1], radiusKm: 5 }]);
   });
 
   it('says when no places match, and when search fails', async () => {

@@ -129,3 +129,34 @@
 - Notes: route tests use random 4 dp points and clean their geocode_cache rows in afterAll.
   Stubbing nominatimFetch with mockResolvedValue reuses one Response, whose body can be read only
   once, so a test needing two fetches must reset and re-stub between them.
+
+## P7 - The Search Area map, showing the chosen centre (2026-10-01)
+- Done: search-area/SearchAreaMapPanel.tsx (main bundle: "Loading the map…" placeholder at
+  MAP_HEIGHT_CLASSES, `<section aria-label="Search Area map">`, the hint line, an error boundary
+  if the chunk fails, and the `CentreSource = 'map' | 'elsewhere'` type) and the lazy
+  search-area/SearchAreaMap.tsx: an orange #ea580c teardrop divIcon pin (28×40, tip-anchored,
+  class search-area-pin) and the grey dashed Search Area circle (class search-area-map-circle),
+  or the world at zoom 2 on [20, 0] with no centre. FrameSearchArea refits on a radius change,
+  or a centre change whose source is 'elsewhere' (the initial view comes from MapContainer's
+  bounds). Scroll-wheel zoom off, dragging on (touch too). SearchAreaForm gains `withMap` and
+  tracks centreSource (every PlacePicker choice is 'elsewhere'); only SearchAreaPage passes it.
+  PlacePicker gains `chooseFirstResult`, passed only with the map. Test seams: the Leaflet
+  container carries `data-zoom` (from map.getZoom on zoomend), the pin element `data-lat`/`data-lng`
+  (from marker.getLatLng).
+- Verified: pnpm typecheck, lint, test (shared 238, web 153, api 445), test:e2e (47) all pass.
+  New tests: SearchAreaPage placeholder → map region + hint (first in its file, so the lazy chunk
+  isn't loaded yet), first-result-chosen-at-once then pick the second and save; WizardPage step 2
+  has no map and a search doesn't choose until a pick. e2e search-area-map.spec (desktop + 375 px):
+  saved Ottawa 5 km → pin at the centre and circle; 1 km zooms in, and the circle's width × 2^-Δzoom
+  shrinks to ~1/5; a postcode search moves the pin (Leaflet position) to the first stub, inside the
+  map; no Search Area → zoom 2, no pin or circle; every tile request served by the fixture; no
+  overflow. pnpm build: main entry index-*.js 373,860 B with no `_leaflet_id`; Leaflet is in a
+  shared TileLayer-*.js chunk; SearchAreaMap-*.js is 1.97 kB. MCP click-through on `E2E=1 pnpm dev`
+  at 1280 and 375 px: pin and circle on the saved area, 5 → 1 km refits (zoom 12 → 14), a
+  (browser-stubbed) search moved the pin to Leeds and refitted, world view with no pin for a new
+  Runner, no overflow, no console errors beyond the pre-sign-in /api/me 401.
+- Notes: TODO(decision) in SearchAreaMapPanel: the wording shown if the map chunk fails to load
+  ("The map couldn’t load. Search for a place or use your location instead."). A centre change
+  whose coordinates match the previous one doesn't refit (re-picking the same place after
+  panning). The pin isn't draggable yet and the map has no click handler: P8 adds both, sets
+  centreSource 'map', and should read the pin's data-lat/lng seam in its e2e.

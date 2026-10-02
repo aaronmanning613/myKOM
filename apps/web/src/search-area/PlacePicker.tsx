@@ -49,6 +49,8 @@ const buttonClass =
  * Finds a place: search a name or postcode, then pick a match (Nominatim has no
  * autocomplete). With `withMyLocation`, also "Use my location", falling back to the IP
  * lookup (after the Runner confirms it) when the browser can't say and the server offers it.
+ * With `chooseFirstResult`, a search with matches chooses the first at once (the others can
+ * still be picked).
  */
 export function PlacePicker({
   id,
@@ -56,6 +58,7 @@ export function PlacePicker({
   chosen,
   onChoose,
   withMyLocation = false,
+  chooseFirstResult = false,
 }: {
   /** Unique on the page: prefixes the element ids. */
   id: string;
@@ -63,6 +66,7 @@ export function PlacePicker({
   chosen: GeocodeResult | null;
   onChoose: (place: GeocodeResult) => void;
   withMyLocation?: boolean;
+  chooseFirstResult?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SearchState>({ kind: 'idle' });
@@ -77,6 +81,7 @@ export function PlacePicker({
     try {
       const { results } = await searchAreaApi.geocode(q);
       setSearch({ kind: 'results', query: q, results });
+      if (chooseFirstResult && results[0]) onChoose(results[0]);
     } catch (error) {
       setSearch({ kind: 'failed', message: geocodeErrorMessage(error) });
     }

@@ -261,7 +261,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - Nominatim 500 → 502;
     - a search and a reverse lookup made back-to-back are at least `NOMINATIM_INTERVAL_MS` apart (throttle test with fake timers, as the existing throttle tests do).
 
-- [ ] **P7** The Search Area map, showing the chosen centre (spec: UI → Search Area):
+- [x] **P7** The Search Area map, showing the chosen centre (spec: UI → Search Area):
   - `search-area/SearchAreaMap.tsx` is the lazy chunk, and `SearchAreaMapPanel.tsx` (main bundle) holds the placeholder and hint line;
   - the map draws the pin and the circle for the current centre and radius, or the world view with no centre;
   - framing follows Decisions → Framing, for the `'elsewhere'` cases and a radius change;

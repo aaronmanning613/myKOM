@@ -10,24 +10,29 @@ import {
 import { useState, type FormEvent } from 'react';
 import { searchAreaApi } from './api';
 import { PlacePicker } from './PlacePicker';
+import { SearchAreaMapPanel, type CentreSource } from './SearchAreaMapPanel';
 
 /**
  * The Search Area form: a centre (place search or "Use my location") and a radius. Submitting
  * saves the Search Area and searches it (`POST /api/search`), then hands over the Results.
+ * With `withMap`, a map shows the centre and radius, and a place search chooses its first match.
  */
 export function SearchAreaForm({
   initial,
   submitLabel,
   onSearched,
+  withMap = false,
 }: {
   /** The saved Search Area, if any, to start from. */
   initial: SearchArea | null;
   submitLabel: string;
   onSearched: (results: Results) => void;
+  withMap?: boolean;
 }) {
   const [centre, setCentre] = useState<GeocodeResult | null>(
     initial && { label: initial.label, lat: initial.lat, lng: initial.lng },
   );
+  const [centreSource, setCentreSource] = useState<CentreSource>('elsewhere');
   const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(
     initial?.radiusKm ?? DEFAULT_SEARCH_RADIUS_KM,
   );
@@ -57,10 +62,15 @@ export function SearchAreaForm({
           chosen={centre}
           onChoose={(place) => {
             setCentre(place);
+            setCentreSource('elsewhere');
             setState('idle');
           }}
           withMyLocation
+          chooseFirstResult={withMap}
         />
+        {withMap && (
+          <SearchAreaMapPanel centre={centre} radiusKm={radiusKm} source={centreSource} />
+        )}
       </section>
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -163,8 +163,16 @@ describe('the first-run wizard', () => {
       await screen.findByRole('heading', { level: 1, name: 'Where do you run?' }),
     ).toBeVisible();
     expect(within(steps).getByText('2. Where you run')).toHaveAttribute('aria-current', 'step');
+    // The Search Area map is on the Search Area page only.
+    expect(screen.queryByRole('region', { name: 'Search Area map' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading the map…')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Place or postcode'), 'High Park{Enter}');
     const found = await screen.findByRole('list', { name: 'Places found' });
+    // With no map, a search doesn't choose until the Runner picks a match.
+    expect(screen.getByTestId('chosen-centre')).toHaveTextContent(
+      'Search for a place or use your location to choose a centre.',
+    );
+    expect(screen.getByRole('button', { name: 'Find my targets' })).toBeDisabled();
     await userEvent.click(within(found).getByRole('button', { name: /^High Park/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Find my targets' }));
 

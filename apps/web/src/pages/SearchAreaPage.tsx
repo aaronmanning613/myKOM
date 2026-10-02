@@ -54,6 +54,7 @@ export function SearchAreaPage() {
             initial={load.saved}
             submitLabel="Save and see results"
             onSearched={() => void navigate('/results')}
+            withMap
           />
 
           <hr className="border-gray-200" />
