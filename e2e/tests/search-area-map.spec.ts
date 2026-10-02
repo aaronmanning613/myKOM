@@ -1,4 +1,4 @@
-import type { GeocodeResponse } from '@mykom/shared';
+import type { GeocodeResponse, ReverseGeocodeResponse, SearchAreaResponse } from '@mykom/shared';
 import { expect, test, type Page } from './fixtures';
 import { signIn } from './sign-in';
 
@@ -20,9 +20,52 @@ async function saveOttawa(page: Page) {
 
 const mapRegion = (page: Page) => page.getByRole('region', { name: 'Search Area map' });
 
-/** The map's zoom, as Leaflet reports it (see SearchAreaMap's ReportZoom). */
+/** The map's zoom, as Leaflet reports it (see SearchAreaMap's ReportView). */
 const zoomOf = async (page: Page) =>
   Number(await mapRegion(page).locator('.leaflet-container').getAttribute('data-zoom'));
+
+/** The map's visible bounds, as Leaflet reports them (see SearchAreaMap's ReportView). */
+async function boundsOf(page: Page) {
+  const bbox = await mapRegion(page).locator('.leaflet-container').getAttribute('data-bounds');
+  const [west, south, east, north] = bbox!.split(',').map(Number) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  return { west, south, east, north };
+}
+
+/** The reverse lookup's stub: a name made from the point asked about. */
+const reverseLabel = (lat: string, lng: string) => `Near ${lat}, ${lng}`;
+
+async function stubReverse(page: Page, status = 200) {
+  await page.route('**/api/geocode/reverse?*', (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const lat = params.get('lat')!;
+    const lng = params.get('lng')!;
+    const body: ReverseGeocodeResponse = {
+      result: { label: reverseLabel(lat, lng), lat: Number(lat), lng: Number(lng) },
+    };
+    return status === 200
+      ? route.fulfill({ json: body })
+      : route.fulfill({ status, json: { error: 'geocoding_unavailable' } });
+  });
+}
+
+/** The saved Search Area, read back from the API. */
+async function savedSearchArea(page: Page) {
+  const response = await page.request.get('/api/search-area');
+  return ((await response.json()) as SearchAreaResponse).searchArea!;
+}
+
+/** Clicks the map away from its pin, the +/− control and the attribution. */
+async function clickMap(page: Page) {
+  const box = (await mapRegion(page).boundingBox())!;
+  await mapRegion(page)
+    .locator('.leaflet-container')
+    .click({ position: { x: box.width * 0.75, y: box.height * 0.3 } });
+}
 
 /** Where the pin is, as Leaflet holds it (see SearchAreaMap's Pin). */
 async function pinPosition(page: Page) {
@@ -95,6 +138,77 @@ for (const viewport of viewports) {
       expect(tiles.requested.length).toBeGreaterThan(0);
       expect(tiles.served).toEqual(tiles.requested);
       expect(await noHorizontalOverflow(page)).toBe(true);
+    });
+
+    test('drops the pin with a click, drags it, names it, and saves it', async ({
+      page,
+      tiles,
+    }) => {
+      await page.route('**/api/geocode?*', (route) => route.fulfill({ json: geocode }));
+      await stubReverse(page);
+      await signIn(page, 'Ren');
+      await saveOttawa(page);
+      await page.goto('/search-area');
+
+      const map = mapRegion(page);
+      const pin = map.locator('.search-area-pin');
+      await expect(pin).toBeVisible();
+      const zoom = await zoomOf(page);
+      const chosen = page.getByTestId('chosen-centre');
+
+      // A click drops the pin there, without moving the view.
+      await clickMap(page);
+      await expect.poll(() => pinPosition(page)).not.toEqual({ lat: OTTAWA.lat, lng: OTTAWA.lng });
+      const dropped = await pinPosition(page);
+      await expect(chosen).toHaveText(
+        `Centre: ${reverseLabel(String(dropped.lat), String(dropped.lng))}`,
+      );
+      expect(await zoomOf(page)).toBe(zoom);
+
+      // Dragging the pin's head moves it again, still at the same zoom.
+      const box = (await pin.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+      await page.mouse.down();
+      await page.mouse.move(box.x - 30, box.y + 40, { steps: 8 });
+      await page.mouse.up();
+      await expect.poll(() => pinPosition(page)).not.toEqual(dropped);
+      const dragged = await pinPosition(page);
+      const draggedLabel = reverseLabel(String(dragged.lat), String(dragged.lng));
+      await expect(chosen).toHaveText(`Centre: ${draggedLabel}`);
+      expect(await zoomOf(page)).toBe(zoom);
+      const bounds = await boundsOf(page);
+
+      await page.getByRole('button', { name: 'Save and see results' }).click();
+      await expect(page).toHaveURL(/\/results$/);
+      await expect(page.getByRole('heading', { name: 'Results' })).toBeVisible();
+
+      const saved = await savedSearchArea(page);
+      expect(saved).toMatchObject({ label: draggedLabel, lat: dragged.lat, lng: dragged.lng });
+      expect([saved.lat, saved.lng]).not.toEqual([OTTAWA.lat, OTTAWA.lng]);
+      expect(saved.lat).toBeGreaterThan(bounds.south);
+      expect(saved.lat).toBeLessThan(bounds.north);
+      expect(saved.lng).toBeGreaterThan(bounds.west);
+      expect(saved.lng).toBeLessThan(bounds.east);
+
+      expect(tiles.served).toEqual(tiles.requested);
+      expect(await noHorizontalOverflow(page)).toBe(true);
+    });
+
+    test('saves “Dropped pin” when no place name comes back', async ({ page }) => {
+      await stubReverse(page, 503);
+      await signIn(page, 'Kit');
+      await saveOttawa(page);
+      await page.goto('/search-area');
+      await expect(mapRegion(page).locator('.search-area-pin')).toBeVisible();
+
+      await clickMap(page);
+      await expect(page.getByTestId('chosen-centre')).toHaveText('Centre: Dropped pin');
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      const dropped = await pinPosition(page);
+
+      await page.getByRole('button', { name: 'Save and see results' }).click();
+      await expect(page).toHaveURL(/\/results$/);
+      expect(await savedSearchArea(page)).toMatchObject({ label: 'Dropped pin', ...dropped });
     });
 
     test('shows the whole world with no pin before a Search Area is set', async ({

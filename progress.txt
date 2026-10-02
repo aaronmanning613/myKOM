@@ -160,3 +160,30 @@
   whose coordinates match the previous one doesn't refit (re-picking the same place after
   panning). The pin isn't draggable yet and the map has no click handler: P8 adds both, sets
   centreSource 'map', and should read the pin's data-lat/lng seam in its e2e.
+
+## P8 - Dropping and dragging the pin (2026-10-01)
+- Done: SearchAreaMap's DropPin (useMapEvents click) and a draggable Pin (dragend) call
+  `onPick`, passed down from SearchAreaForm through SearchAreaMapPanel. The form's chooseOnMap
+  rounds to 5 dp, sets { label: 'Dropped pin', lat, lng } with source 'map', aborts any earlier
+  lookup, and calls searchAreaApi.reverseGeocode; the name is applied only if the centre still
+  has those coordinates (and the lookup wasn't aborted). "Centre:" shows " (finding the place
+  name…)" while it's in flight; a failure or null result silently keeps "Dropped pin". A choice
+  from the PlacePicker aborts an in-flight lookup too. The Leaflet container's test seam now also
+  carries `data-bounds` (toBBoxString, on moveend/zoomend; ReportZoom → ReportView).
+- Verified: pnpm typecheck, lint, test (shared 238, web 156, api 445), test:e2e (51) all pass.
+  New tests: search-area/SearchAreaForm.test.tsx (vi.mocks our own ./SearchAreaMap chunk with
+  buttons that call onPick, not Leaflet): suffix then reverse label, with the 5 dp centre saved;
+  a second drop before the first lookup resolves ends with the second's label; a 503 and a null
+  result keep "Dropped pin" with no alert. e2e search-area-map.spec (desktop + 375 px): a click
+  moves the pin and shows the stubbed reverse label at the same zoom; dragging the pin's head with
+  page.mouse moves it again at the same zoom; saving goes to Results, and GET /api/search-area has
+  the dragged centre (≠ Ottawa, inside data-bounds) and its label; a 503 stub saves "Dropped pin".
+  MCP click-through on `E2E=1 pnpm dev` at 1280 px (click + drag, zoom held at 12, the real API's
+  503 → "Dropped pin", no alert) and 375 px (browser-stubbed reverse, click → named, saved, no
+  overflow). Console errors only the expected reverse 503s (no Nominatim in test mode).
+- Notes: for P9. search-area.spec (P7 flow, not P8) logs an unhandled Leaflet
+  "Cannot read properties of undefined (reading '_leaflet_pos')": a place pick refits with a
+  zoom animation, Save navigates away within 250 ms, and Leaflet's _animateZoom setTimeout
+  (leaflet-src.js:4827) calls _onZoomTransitionEnd on the removed map. Tests still pass. A fix
+  would need a Leaflet internal (e.g. clearing _animatingZoom on unmount) or zoomAnimation off;
+  left for a deliberate decision, and P9's "no console errors" check may hit it.

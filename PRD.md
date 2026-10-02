@@ -281,7 +281,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
       - no tile request escapes the fixture;
       - there's no horizontal overflow at 375 px.
 
-- [ ] **P8** Dropping and dragging the pin:
+- [x] **P8** Dropping and dragging the pin:
   - a map click drops the pin and a `dragend` moves it. Each sets the centre `{ label: 'Dropped pin', lat, lng }` (rounded to 5 dp) with source `'map'`, so the view doesn't move;
   - then the form calls `reverseGeocode`, aborting any earlier lookup, and applies the name only if the centre still has the same coordinates. The "Centre:" line shows the "(finding the place name…)" suffix while the lookup is in flight;
   - a failed or empty lookup leaves "Dropped pin" silently;

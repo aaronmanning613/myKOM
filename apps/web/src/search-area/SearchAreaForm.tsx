@@ -7,10 +7,16 @@ import {
   type SearchArea,
   type SearchRadiusKm,
 } from '@mykom/shared';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { searchAreaApi } from './api';
 import { PlacePicker } from './PlacePicker';
 import { SearchAreaMapPanel, type CentreSource } from './SearchAreaMapPanel';
+
+/** The label of a centre chosen on the map, until (unless) a place name comes back for it. */
+export const DROPPED_PIN_LABEL = 'Dropped pin';
+
+/** 5 decimal places: about a metre. */
+const roundCoordinate = (degrees: number) => Math.round(degrees * 1e5) / 1e5 || 0;
 
 /**
  * The Search Area form: a centre (place search or "Use my location") and a radius. Submitting
@@ -37,6 +43,58 @@ export function SearchAreaForm({
     initial?.radiusKm ?? DEFAULT_SEARCH_RADIUS_KM,
   );
   const [state, setState] = useState<'idle' | 'searching' | 'failed'>('idle');
+  // The reverse lookup naming a dropped pin, while it's in flight.
+  const naming = useRef<AbortController | null>(null);
+  const [findingName, setFindingName] = useState(false);
+
+  useEffect(() => () => naming.current?.abort(), []);
+
+  function stopNaming() {
+    naming.current?.abort();
+    naming.current = null;
+    setFindingName(false);
+  }
+
+  function chooseElsewhere(place: GeocodeResult) {
+    stopNaming();
+    setCentre(place);
+    setCentreSource('elsewhere');
+    setState('idle');
+  }
+
+  /** A pin dropped or dragged on the map: "Dropped pin" at once, then its place name if found. */
+  function chooseOnMap(point: { lat: number; lng: number }) {
+    stopNaming();
+    const lat = roundCoordinate(point.lat);
+    const lng = roundCoordinate(point.lng);
+    setCentre({ label: DROPPED_PIN_LABEL, lat, lng });
+    setCentreSource('map');
+    setState('idle');
+
+    const controller = new AbortController();
+    naming.current = controller;
+    setFindingName(true);
+    searchAreaApi
+      .reverseGeocode(lat, lng, controller.signal)
+      .then(({ result }) => {
+        if (!result || controller.signal.aborted) return;
+        // Only if the pin hasn't moved since.
+        setCentre((current) =>
+          current?.lat === lat && current.lng === lng
+            ? { ...current, label: result.label }
+            : current,
+        );
+      })
+      .catch(() => {
+        // The pin itself is what counts: it stays "Dropped pin".
+      })
+      .finally(() => {
+        if (naming.current === controller) {
+          naming.current = null;
+          setFindingName(false);
+        }
+      });
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,16 +118,17 @@ export function SearchAreaForm({
           id="search-area"
           label="Place or postcode"
           chosen={centre}
-          onChoose={(place) => {
-            setCentre(place);
-            setCentreSource('elsewhere');
-            setState('idle');
-          }}
+          onChoose={chooseElsewhere}
           withMyLocation
           chooseFirstResult={withMap}
         />
         {withMap && (
-          <SearchAreaMapPanel centre={centre} radiusKm={radiusKm} source={centreSource} />
+          <SearchAreaMapPanel
+            centre={centre}
+            radiusKm={radiusKm}
+            source={centreSource}
+            onPick={chooseOnMap}
+          />
         )}
       </section>
 
@@ -112,6 +171,7 @@ export function SearchAreaForm({
           {centre ? (
             <>
               Centre: <strong className="break-words">{centre.label}</strong>
+              {findingName && ' (finding the place name…)'}
             </>
           ) : (
             'Search for a place or use your location to choose a centre.'

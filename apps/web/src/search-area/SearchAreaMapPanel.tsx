@@ -35,10 +35,13 @@ export function SearchAreaMapPanel({
   centre,
   radiusKm,
   source,
+  onPick,
 }: {
   centre: LatLng | null;
   radiusKm: number;
   source: CentreSource;
+  /** A point the Runner dropped or dragged the pin to. */
+  onPick: (point: LatLng) => void;
 }) {
   return (
     <div>
@@ -46,7 +49,7 @@ export function SearchAreaMapPanel({
         <Suspense fallback={<div className={boxClasses}>Loading the map…</div>}>
           {/* `isolate` keeps Leaflet's z-indexes below the header's menus. */}
           <section aria-label="Search Area map" className="isolate">
-            <SearchAreaMap centre={centre} radiusKm={radiusKm} source={source} />
+            <SearchAreaMap centre={centre} radiusKm={radiusKm} source={source} onPick={onPick} />
           </section>
         </Suspense>
       </MapLoadBoundary>

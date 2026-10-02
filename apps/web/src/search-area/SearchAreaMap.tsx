@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import type { LatLng } from '@mykom/shared';
 import L from 'leaflet';
 import { useEffect, useRef } from 'react';
-import { Circle, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { circleBounds, toLeaflet, toLeafletBounds } from '../map/geometry';
 import {
   MAP_HEIGHT_CLASSES,
@@ -75,24 +75,37 @@ function FrameSearchArea({
   return null;
 }
 
-/** A test seam: the map's zoom, read from Leaflet, on its container. */
-function ReportZoom() {
+/**
+ * A test seam: the map's zoom and visible bounds (Leaflet's "west,south,east,north"), read from
+ * Leaflet, on its container.
+ */
+function ReportView() {
   const map = useMap();
   useEffect(() => {
     const report = () => {
-      map.getContainer().dataset.zoom = String(map.getZoom());
+      const { dataset } = map.getContainer();
+      dataset.zoom = String(map.getZoom());
+      dataset.bounds = map.getBounds().toBBoxString();
     };
     report();
-    map.on('zoomend', report);
+    map.on('zoomend moveend', report);
     return () => {
-      map.off('zoomend', report);
+      map.off('zoomend moveend', report);
     };
   }, [map]);
   return null;
 }
 
-/** The pin, with its Leaflet position on its element as a test seam. */
-function Pin({ centre }: { centre: LatLng }) {
+/** A click or tap on the map (Leaflet's `click` doesn't fire after a drag) drops the pin there. */
+function DropPin({ onPick }: { onPick: (point: LatLng) => void }) {
+  useMapEvents({
+    click: (event) => onPick({ lat: event.latlng.lat, lng: event.latlng.lng }),
+  });
+  return null;
+}
+
+/** The pin, draggable, with its Leaflet position on its element as a test seam. */
+function Pin({ centre, onPick }: { centre: LatLng; onPick: (point: LatLng) => void }) {
   const marker = useRef<L.Marker>(null);
   useEffect(() => {
     const element = marker.current?.getElement();
@@ -102,17 +115,33 @@ function Pin({ centre }: { centre: LatLng }) {
       element.dataset.lng = String(position.lng);
     }
   }, [centre.lat, centre.lng]);
-  return <Marker ref={marker} position={toLeaflet(centre)} icon={pinIcon} keyboard={false} />;
+  return (
+    <Marker
+      ref={marker}
+      position={toLeaflet(centre)}
+      icon={pinIcon}
+      keyboard={false}
+      draggable
+      eventHandlers={{
+        dragend: () => {
+          const position = marker.current?.getLatLng();
+          if (position) onPick({ lat: position.lat, lng: position.lng });
+        },
+      }}
+    />
+  );
 }
 
 export default function SearchAreaMap({
   centre,
   radiusKm,
   source,
+  onPick,
 }: {
   centre: LatLng | null;
   radiusKm: number;
   source: CentreSource;
+  onPick: (point: LatLng) => void;
 }) {
   const view = centre
     ? {
@@ -131,7 +160,8 @@ export default function SearchAreaMap({
     >
       <TileLayer url={TILE_URL} maxZoom={TILE_MAX_ZOOM} attribution={TILE_ATTRIBUTION} />
       <FrameSearchArea centre={centre} radiusKm={radiusKm} source={source} />
-      <ReportZoom />
+      <ReportView />
+      <DropPin onPick={onPick} />
       {centre && (
         <>
           <Circle
@@ -146,7 +176,7 @@ export default function SearchAreaMap({
               className: 'search-area-map-circle',
             }}
           />
-          <Pin centre={centre} />
+          <Pin centre={centre} onPick={onPick} />
         </>
       )}
     </MapContainer>
