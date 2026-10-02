@@ -6,6 +6,7 @@ import {
 } from '@mykom/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
+import { INITIAL_SHOWN, nextShown, type ShownCounts } from '../results/paging';
 import { ResultsSection } from '../results/ResultsSection';
 import type { SegmentMapSelection } from '../results/segment-map-features';
 import { SegmentMapPanel, showsSegmentMap } from '../results/SegmentMapPanel';
@@ -118,6 +119,16 @@ function ResultsView({
   const { searchArea, progress, budget } = results;
   const now = new Date();
   const biggerRadius = SEARCH_RADII_KM.find((r) => r > searchArea.radiusKm);
+
+  // How many rows each list shows. A poll never resets it; a new Search Area does.
+  const areaKey = `${searchArea.lat},${searchArea.lng},${searchArea.radiusKm}`;
+  const [paging, setPaging] = useState({ areaKey, shown: INITIAL_SHOWN });
+  const shown = paging.areaKey === areaKey ? paging.shown : INITIAL_SHOWN;
+  const showMore = (list: keyof ShownCounts) =>
+    setPaging({
+      areaKey,
+      shown: { ...shown, [list]: nextShown(results[list].length, shown[list]) },
+    });
 
   // The Segment "Show on map" picked, until its popup closes.
   const [selection, setSelection] = useState<SegmentMapSelection | null>(null);
@@ -248,6 +259,8 @@ function ResultsView({
         now={now}
         empty={emptyTargets}
         onShowOnMap={showOnMap}
+        shown={shown.targets}
+        onShowMore={() => showMore('targets')}
       />
       {results.nearestMisses.length > 0 && (
         <ResultsSection
@@ -256,6 +269,8 @@ function ResultsView({
           rows={results.nearestMisses}
           now={now}
           onShowOnMap={showOnMap}
+          shown={shown.nearestMisses}
+          onShowMore={() => showMore('nearestMisses')}
         />
       )}
       {results.suspicious.length > 0 && (
@@ -265,6 +280,8 @@ function ResultsView({
           rows={results.suspicious}
           now={now}
           muted
+          shown={shown.suspicious}
+          onShowMore={() => showMore('suspicious')}
         />
       )}
     </>

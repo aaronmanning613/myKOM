@@ -484,6 +484,101 @@ describe('the Segment map', () => {
   });
 });
 
+describe('paged lists', () => {
+  const many = (n: number, prefix: string, from = 100) =>
+    Array.from({ length: n }, (_, i) => row({ segmentId: from + i, name: `${prefix} ${i + 1}` }));
+  const bodyRows = (name: string) => within(section(name)).getAllByRole('row').length - 1;
+  const showMore = (button: string, list: string) =>
+    userEvent.click(screen.getByRole('button', { name: `${button} ${list}` }));
+
+  it('shows 20 of 47 targets, then 40, then all 47, with the full total in the heading', async () => {
+    stubApi({ ...signedIn(), 'GET /api/results': () => json(results({ targets: many(47, 'T') })) });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Your targets (47)' })).toBeVisible();
+    expect(bodyRows('Your targets')).toBe(20);
+    expect(within(section('Your targets')).getByText('Showing 20 of 47')).toBeVisible();
+    // Ranked order: the first page is the first 20 rows.
+    expect(screen.getByRole('row', { name: /T 20\b/ })).toBeVisible();
+    expect(screen.queryByRole('row', { name: /T 21\b/ })).not.toBeInTheDocument();
+
+    await showMore('Show 20 more', 'Your targets');
+    expect(bodyRows('Your targets')).toBe(40);
+    expect(screen.getByText('Showing 40 of 47')).toBeVisible();
+    const last = screen.getByRole('button', { name: 'Show 7 more Your targets' });
+    expect(last).toHaveTextContent(/^Show 7 more$/);
+
+    await userEvent.click(last);
+    expect(bodyRows('Your targets')).toBe(47);
+    expect(screen.queryByText(/^Showing/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your targets (47)' })).toBeVisible();
+  });
+
+  it('keeps the shown count through a poll that reorders the list', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const targets = many(47, 'T');
+    const refining = results({ targets, pending: true });
+    const responses = [refining, { ...refining, targets: [...targets].reverse() }];
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () => json(responses.shift() ?? { ...refining, pending: false }),
+    });
+    renderPage();
+
+    await screen.findByText('Showing 20 of 47');
+    await showMore('Show 20 more', 'Your targets');
+    expect(bodyRows('Your targets')).toBe(40);
+
+    await act(() => vi.advanceTimersByTimeAsync(RESULTS_POLL_MS));
+    // Reversed: T 47 now leads, and 40 rows still show.
+    expect(await screen.findByRole('row', { name: /T 47\b/ })).toBeVisible();
+    expect(bodyRows('Your targets')).toBe(40);
+    expect(screen.getByText('Showing 40 of 47')).toBeVisible();
+  });
+
+  it('resets to 20 when the radius changes', async () => {
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () => json(results({ targets: many(47, 'T') })),
+      'POST /api/search': () =>
+        json(results({ targets: many(47, 'T'), searchArea: { ...fast.searchArea, radiusKm: 5 } })),
+    });
+    renderPage();
+
+    await screen.findByText('Showing 20 of 47');
+    await showMore('Show 20 more', 'Your targets');
+    expect(bodyRows('Your targets')).toBe(40);
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Radius' }), '5');
+    expect(await screen.findByText('Showing 20 of 47')).toBeVisible();
+    expect(bodyRows('Your targets')).toBe(20);
+  });
+
+  it('pages Suspicious records separately from targets', async () => {
+    stubApi({
+      ...signedIn(),
+      'GET /api/results': () =>
+        json(
+          results({
+            targets: many(25, 'T'),
+            suspicious: many(30, 'S', 500).map((r) => ({ ...r, implausible: true })),
+          }),
+        ),
+    });
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Suspicious records (30)' });
+    expect(bodyRows('Your targets')).toBe(20);
+    expect(bodyRows('Suspicious records')).toBe(20);
+
+    await showMore('Show 10 more', 'Suspicious records');
+    expect(bodyRows('Suspicious records')).toBe(30);
+    expect(bodyRows('Your targets')).toBe(20);
+    expect(screen.getByRole('button', { name: 'Show 5 more Your targets' })).toBeVisible();
+  });
+});
+
 describe('ResultsSection', () => {
   it('calls onShowOnMap with the row’s Segment id', async () => {
     const onShowOnMap = vi.fn();

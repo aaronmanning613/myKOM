@@ -108,6 +108,43 @@ for (const viewport of viewports) {
       await expect(page.getByRole('combobox', { name: 'Radius' })).toHaveValue('5');
       await expect(targets.getByRole('heading')).toHaveText('Your targets (3)');
     });
+
+    test('pages a long list of targets 20 at a time', async ({ page }) => {
+      // Two targets from seedArea plus 23 more.
+      await seedArea(page);
+      const segments = await page.request.post('/api/test/segments', {
+        data: {
+          segments: Array.from({ length: 23 }, (_, i) => ({
+            ...CENTRE,
+            name: `Extra Target ${i + 1}`,
+            distance: 1000,
+            averageGrade: 0.5,
+            athleteCount: 50 + i,
+            record: 170,
+            pb: 175,
+          })),
+        },
+      });
+      expect(segments.ok()).toBe(true);
+      await page.goto('/results');
+
+      const targets = page.getByRole('region', { name: /^Your targets/ });
+      await expect(targets.getByRole('heading')).toHaveText('Your targets (25)');
+      // A header row plus the first page.
+      await expect(targets.getByRole('row')).toHaveCount(1 + 20);
+      await expect(targets.getByText('Showing 20 of 25')).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+
+      await page.getByRole('button', { name: 'Show 5 more Your targets' }).click();
+      await expect(targets.getByRole('row')).toHaveCount(1 + 25);
+      await expect(targets.getByText(/^Showing/)).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^Show \d+ more/ })).toHaveCount(0);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    });
   });
 }
 

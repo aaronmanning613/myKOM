@@ -8,6 +8,7 @@ import {
   stravaSegmentUrl,
 } from '@mykom/shared';
 import type { ReactNode } from 'react';
+import { showMoreLabel, visibleRows } from './paging';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -154,6 +155,8 @@ export function ResultsSection({
   empty,
   muted = false,
   onShowOnMap,
+  shown,
+  onShowMore,
 }: {
   title: string;
   subtitle?: string;
@@ -164,8 +167,14 @@ export function ResultsSection({
   muted?: boolean;
   /** Gives each row a "Show on map" button (only where there's a map). */
   onShowOnMap?: (segmentId: number) => void;
+  /** With `onShowMore`, pages the list: only the first `shown` rows, then "Show N more". */
+  shown?: number;
+  onShowMore?: () => void;
 }) {
   const id = `results-${title.toLowerCase().replaceAll(' ', '-')}`;
+  const paged = shown !== undefined && onShowMore !== undefined;
+  const visible = paged ? visibleRows(rows, shown) : rows;
+  const more = paged ? showMoreLabel(rows.length, visible.length) : null;
   return (
     <section aria-labelledby={id} className={`mt-6 ${muted ? 'opacity-70' : ''}`}>
       <h2 id={id} className="text-lg font-semibold">
@@ -188,11 +197,24 @@ export function ResultsSection({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visible.map((row) => (
                 <Row key={row.segmentId} row={row} now={now} onShowOnMap={onShowOnMap} />
               ))}
             </tbody>
           </table>
+          {more && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="text-gray-600">{more.status}</span>
+              <button
+                type="button"
+                aria-label={`${more.button} ${title}`}
+                onClick={onShowMore}
+                className="rounded border border-gray-300 px-3 py-1 font-medium text-gray-800 hover:bg-gray-50"
+              >
+                {more.button}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

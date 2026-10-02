@@ -167,7 +167,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
 
 ### Paged lists
 
-- [ ] **P1** Paging in the lists (spec: UI → Results page):
+- [x] **P1** Paging in the lists (spec: UI → Results page):
   - a pure helper in `apps/web/src/results/paging.ts`, with `RESULTS_PAGE_SIZE = 20` and:
     - `INITIAL_SHOWN`, 20 for each list;
     - `visibleRows(rows, shown)`;

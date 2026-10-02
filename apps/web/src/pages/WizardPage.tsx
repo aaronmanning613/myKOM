@@ -5,6 +5,7 @@ import { useAuth, type Me } from '../auth/AuthContext';
 import { fitnessProfileApi } from '../fitness-profile/api';
 import { BenchmarkTable } from '../fitness-profile/BenchmarkTable';
 import { EstimatedFrom } from '../fitness-profile/EstimatedFrom';
+import { nextShown, RESULTS_PAGE_SIZE } from '../results/paging';
 import { ResultsSection } from '../results/ResultsSection';
 import { searchAreaApi } from '../search-area/api';
 import { OsmAttribution } from '../search-area/PlacePicker';
@@ -207,6 +208,7 @@ function SearchStep({ onSearched }: { onSearched: (results: Results) => void }) 
 function TargetsStep({ initial }: { initial: Results }) {
   const [results, setResults] = useState(initial);
   const [failedPolls, setFailedPolls] = useState(0);
+  const [shownTargets, setShownTargets] = useState(RESULTS_PAGE_SIZE);
   const polling = shouldPoll(results);
 
   useEffect(() => {
@@ -264,6 +266,8 @@ function TargetsStep({ initial }: { initial: Results }) {
         title="Your targets"
         rows={results.targets}
         now={new Date()}
+        shown={shownTargets}
+        onShowMore={() => setShownTargets(nextShown(results.targets.length, shownTargets))}
         empty={
           <p className="mt-2 text-sm text-gray-600">
             {results.pending

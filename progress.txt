@@ -13,3 +13,23 @@
 # - Verified: commands run and their result
 # - Notes: TODO(decision) items, blockers, anything the next iteration should know
 #
+
+## P1 - Paging in the lists (2026-10-01)
+- Done: apps/web/src/results/paging.ts (RESULTS_PAGE_SIZE = 20, INITIAL_SHOWN, visibleRows,
+  nextShown, showMoreLabel) with unit tests. ResultsSection takes optional `shown` +
+  `onShowMore`: renders the visible rows, then "Showing 20 of 47" and a "Show N more" button
+  (aria-label "Show N more <list title>") while rows are hidden; the heading keeps the total.
+  ResultsView keeps `{ areaKey, shown }` state, where areaKey is `lat,lng,radiusKm`: a
+  different Search Area falls back to INITIAL_SHOWN (derived, no effect), a poll never resets
+  it. The wizard's step 3 keeps its own count for Your targets.
+- Verified: pnpm typecheck, lint, test (shared 238, web 137, api 421), test:e2e (39) all pass.
+  New tests: paging unit tests; ResultsPage "paged lists" (47 targets → 20/40/47 with
+  "Show 7 more", a reordering poll keeps 40, a radius change resets to 20, Suspicious records
+  page separately); a wizard step-3 paging test; e2e results.spec "pages a long list of
+  targets 20 at a time" (25 targets, "Show 5 more", desktop + 375 px, no overflow).
+  MCP click-through on `E2E=1 pnpm dev` with 25 targets + 23 Suspicious records at 1280 and
+  375 px: 20 rows each, buttons reveal 25 and 23, lists page independently, no overflow, no
+  console errors.
+- Notes: the map still draws every row; P2 hands SegmentMapPanel the visible slice. When the
+  last page is revealed the button disappears, so focus falls back to <body> (the PRD's
+  "focus stays on the button" holds for every click that leaves the button in place).

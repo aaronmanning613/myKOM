@@ -212,6 +212,31 @@ describe('the first-run wizard', () => {
     expect(router.state.location.pathname).toBe('/results');
   });
 
+  it('pages Your targets in step 3', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => row(i + 1, `Target ${i + 1}`));
+    stubApi({
+      ...signedIn(newRunner),
+      'GET /api/fitness-profile': () => json(generated),
+      'GET /api/geocode?q=High+Park': () => json({ results: [place] }),
+      'POST /api/search': () => json(results({ targets: many, pending: false })),
+    });
+    renderAt();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Looks right, continue' }));
+    await userEvent.type(await screen.findByLabelText('Place or postcode'), 'High Park{Enter}');
+    const found = await screen.findByRole('list', { name: 'Places found' });
+    await userEvent.click(within(found).getByRole('button', { name: /^High Park/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Find my targets' }));
+
+    expect(await screen.findByRole('heading', { name: 'Your targets (25)' })).toBeVisible();
+    const targets = screen.getByRole('region', { name: /^Your targets/ });
+    expect(within(targets).getAllByRole('row')).toHaveLength(1 + 20);
+    expect(within(targets).getByText('Showing 20 of 25')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Show 5 more Your targets' }));
+    expect(within(targets).getAllByRole('row')).toHaveLength(1 + 25);
+    expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
+  });
+
   it('says it is reading the Runner’s runs while the profile loads', async () => {
     stubApi({ ...signedIn(newRunner), 'GET /api/fitness-profile': () => new Promise(() => {}) });
     renderAt();
