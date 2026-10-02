@@ -188,7 +188,7 @@ Work top to bottom. Each task's **Check** must pass, plus `pnpm typecheck && pnp
     - a wizard test: step 3 pages Your targets;
     - an e2e test that seeds 25 targets (extend the seeding helper if it needs it) shows 20 rows, clicks "Show 5 more", and sees 25, at desktop and 375 px with no horizontal overflow.
 
-- [ ] **P2** The map draws only the listed Segments:
+- [x] **P2** The map draws only the listed Segments:
   - `ResultsView` passes `SegmentMapPanel` the visible slice of Your targets and Nearest misses (Decisions → Map follows the lists);
   - the selection-clearing effect checks the visible rows, so a poll that moves the selected Segment past the shown count clears it;
   - "Show more" never refits the map. Check this holds with the existing `FrameSearchArea` dependencies (centre and radius only), and fix it if not.

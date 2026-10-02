@@ -228,6 +228,7 @@ export default function SegmentMap({
           weight: 2,
           dashArray: SEARCH_AREA_DASH,
           fill: false,
+          className: 'segment-map-search-area',
         }}
       />
       {segments.map((feature) => (

@@ -33,3 +33,23 @@
 - Notes: the map still draws every row; P2 hands SegmentMapPanel the visible slice. When the
   last page is revealed the button disappears, so focus falls back to <body> (the PRD's
   "focus stays on the button" holds for every click that leaves the button in place).
+
+## P2 - The map draws only the listed Segments (2026-10-01)
+- Done: ResultsView memoises `mapResults` (results with targets and nearestMisses cut to the
+  shown counts via visibleRows) and hands it to SegmentMapPanel; showsSegmentMap still looks at
+  the full lists. The selection-clearing effect checks the visible rows, so a poll that pushes
+  the selected Segment past the shown count clears it. FrameSearchArea's deps (centre and
+  radius) already kept "Show more" from refitting: no change needed. Test seams: the map
+  section carries `data-segment-count` and `data-selected-segment`; the Search Area circle has
+  class `segment-map-search-area`.
+- Verified: pnpm typecheck, lint, test (shared 238, web 139, api 421), test:e2e (41) all pass.
+  New tests: ResultsPage "paged lists › the Segment map" (map handed 23 → 43 → 50 rows; a
+  reversing poll clears a selection pushed to row 43, and that test fails if the effect checks
+  the full lists). e2e segment-map.spec "draws only the shown rows…" (25 seeded routes: 20, then
+  25 after "Show 5 more"; zooms in first, then checks the circle's box within the map is
+  unchanged by the click; "Show Route 25 on map" opens its popup; desktop + 375 px). A mutation
+  that refits on every feature change makes the e2e fail. MCP click-through on `E2E=1 pnpm dev`
+  at 1280 and 375 px: 20 → 25 routes, view held after zooming, revealed rows' "Show on map"
+  works, no overflow, no console errors beyond the pre-sign-in /api/me 401.
+- Notes: the e2e compares the circle's box relative to the map section, rounded to whole
+  pixels (scrolling to the button shifts raw rects by sub-pixel float error).

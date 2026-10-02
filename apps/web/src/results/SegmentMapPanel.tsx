@@ -20,6 +20,7 @@ export function SegmentMapPanel({
   selection = null,
   onPopupClose,
 }: {
+  /** What to draw: the rows the lists are showing, not every row (see ResultsView). */
   results: Results;
   /** The Segment "Show on map" picked: the map scrolls into view, fits it and opens its popup. */
   selection?: SegmentMapSelection | null;
@@ -41,8 +42,14 @@ export function SegmentMapPanel({
           </div>
         }
       >
-        {/* `isolate` keeps Leaflet's z-indexes below the header's menus. */}
-        <section aria-label="Segment map" className="isolate">
+        {/* `isolate` keeps Leaflet's z-indexes below the header's menus. The data attributes
+            are a test seam: what the map was handed, without reaching into Leaflet. */}
+        <section
+          aria-label="Segment map"
+          className="isolate"
+          data-segment-count={results.targets.length + results.nearestMisses.length}
+          data-selected-segment={selection?.segmentId}
+        >
           <SegmentMap results={results} selection={selection} onPopupClose={onPopupClose} />
         </section>
       </Suspense>

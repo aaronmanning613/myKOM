@@ -577,6 +577,54 @@ describe('paged lists', () => {
     expect(bodyRows('Your targets')).toBe(20);
     expect(screen.getByRole('button', { name: 'Show 5 more Your targets' })).toBeVisible();
   });
+
+  describe('the Segment map', () => {
+    const map = () => screen.getByRole('region', { name: 'Segment map' });
+
+    it('draws only the shown rows: 20 of 47 targets, then 40 after "Show more"', async () => {
+      stubApi({
+        ...signedIn(),
+        'GET /api/results': () =>
+          json(results({ targets: many(47, 'T'), nearestMisses: many(3, 'M', 500) })),
+      });
+      renderPage();
+
+      expect(await screen.findByRole('region', { name: 'Segment map' })).toHaveAttribute(
+        'data-segment-count',
+        String(20 + 3),
+      );
+      await showMore('Show 20 more', 'Your targets');
+      expect(map()).toHaveAttribute('data-segment-count', String(40 + 3));
+      await showMore('Show 7 more', 'Your targets');
+      expect(map()).toHaveAttribute('data-segment-count', String(47 + 3));
+    });
+
+    it('clears the selection when a poll pushes the selected Segment past the shown rows', async () => {
+      // jsdom has no scrollIntoView.
+      Element.prototype.scrollIntoView = vi.fn();
+      onTestFinished(() => {
+        delete (Element.prototype as Partial<Element>).scrollIntoView;
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const targets = many(47, 'T');
+      const refining = results({ targets, pending: true });
+      const responses = [refining, { ...refining, targets: [...targets].reverse() }];
+      stubApi({
+        ...signedIn(),
+        'GET /api/results': () => json(responses.shift() ?? { ...refining, pending: false }),
+      });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Show T 5 on map' }));
+      expect(map()).toHaveAttribute('data-selected-segment', '104');
+
+      // Reversed, T 5 is 43rd: still in the list, but past the 20 shown.
+      await act(() => vi.advanceTimersByTimeAsync(RESULTS_POLL_MS));
+      expect(await screen.findByRole('row', { name: /T 47\b/ })).toBeVisible();
+      expect(screen.queryByRole('row', { name: /T 5\b/ })).not.toBeInTheDocument();
+      expect(map()).not.toHaveAttribute('data-selected-segment');
+    });
+  });
 });
 
 describe('ResultsSection', () => {

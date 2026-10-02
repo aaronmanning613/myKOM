@@ -93,6 +93,50 @@ async function seedMappedArea(page: Page) {
   };
 }
 
+/**
+ * A Runner with a 2 km Search Area and 25 route targets on a 5 × 5 grid, each a short diagonal,
+ * ranked Route 1 to Route 25 (fewest athletes last).
+ */
+async function seedManyRoutes(page: Page) {
+  await signIn(page, 'Mara');
+  const runs = await page.request.post('/api/test/runs', {
+    data: {
+      runs: [
+        { name: 'Marathon', distance: 42_195, movingTime: 8463, daysAgo: 300 },
+        { name: '10K race', distance: 10_000, movingTime: 1839, daysAgo: 100 },
+      ],
+    },
+  });
+  expect(runs.ok()).toBe(true);
+  const search = await page.request.post('/api/search', {
+    data: { label: 'Ottawa, Ontario', ...CENTRE, radiusKm: 2 },
+  });
+  expect(search.ok()).toBe(true);
+
+  const segments = await page.request.post('/api/test/segments', {
+    data: {
+      segments: Array.from({ length: 25 }, (_, i) => {
+        const start = offset(CENTRE, (Math.floor(i / 5) - 2) * 0.003, ((i % 5) - 2) * 0.004);
+        return {
+          ...start,
+          name: `Route ${i + 1}`,
+          distance: 1000,
+          averageGrade: 0.5,
+          athleteCount: 1000 - i,
+          record: 170,
+          pb: 175,
+          polyline: encodePolyline([start, offset(start, 0.001, 0.002)]),
+        };
+      }),
+    },
+  });
+  expect(segments.ok()).toBe(true);
+  const stored = (await (await page.request.get('/api/results')).json()) as Results;
+  expect(stored.targets.map((r) => r.name)).toEqual(
+    Array.from({ length: 25 }, (_, i) => `Route ${i + 1}`),
+  );
+}
+
 const viewports = [
   { name: 'desktop', size: { width: 1280, height: 800 } },
   { name: 'phone', size: { width: 375, height: 667 } },
@@ -204,6 +248,51 @@ for (const viewport of viewports) {
       await targets.getByRole('button', { name: 'Show Canal Dash on map' }).click();
       await expect(map.locator('.leaflet-popup', { hasText: 'Canal Dash' })).toBeVisible();
       await expect(popup).toHaveCount(0);
+    });
+
+    test('draws only the shown rows, and "Show more" adds to the map without moving it', async ({
+      page,
+    }) => {
+      await seedManyRoutes(page);
+      await page.goto('/results');
+
+      const map = page.getByRole('region', { name: 'Segment map' });
+      await expect(map.locator('.segment-map-route')).toHaveCount(20);
+
+      // Zoom in first: a refit would undo it. Where the Search Area circle sits within the map
+      // changes with any pan or zoom (and not with the page's scroll).
+      const circleInMap = () =>
+        map.evaluate((section) => {
+          const outer = section.getBoundingClientRect();
+          const box = section.querySelector('.segment-map-search-area')!.getBoundingClientRect();
+          // Whole pixels: scrolling the page shifts both boxes by a sub-pixel float error.
+          return {
+            x: Math.round(box.x - outer.x),
+            y: Math.round(box.y - outer.y),
+            width: Math.round(box.width),
+          };
+        });
+      const fitted = await circleInMap();
+      await map.getByRole('button', { name: 'Zoom in' }).click();
+      await expect
+        .poll(async () => (await circleInMap()).width)
+        .toBeGreaterThan(fitted.width * 1.5);
+      // Let the zoom animation settle.
+      await page.waitForTimeout(500);
+      const zoomed = await circleInMap();
+
+      await page.getByRole('button', { name: 'Show 5 more Your targets' }).click();
+      await expect(map.locator('.segment-map-route')).toHaveCount(25);
+      // Long enough for a refit's animation to have moved the circle.
+      await page.waitForTimeout(500);
+      expect(await circleInMap()).toEqual(zoomed);
+
+      // A row revealed by "Show more" still has a working "Show on map".
+      await page.getByRole('button', { name: 'Show Route 25 on map' }).click();
+      await expect(map.locator('.leaflet-popup', { hasText: 'Route 25' })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
     });
   });
 }

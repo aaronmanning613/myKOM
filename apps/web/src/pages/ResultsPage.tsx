@@ -4,9 +4,9 @@ import {
   type Results,
   type SearchRadiusKm,
 } from '@mykom/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { INITIAL_SHOWN, nextShown, type ShownCounts } from '../results/paging';
+import { INITIAL_SHOWN, nextShown, visibleRows, type ShownCounts } from '../results/paging';
 import { ResultsSection } from '../results/ResultsSection';
 import type { SegmentMapSelection } from '../results/segment-map-features';
 import { SegmentMapPanel, showsSegmentMap } from '../results/SegmentMapPanel';
@@ -130,17 +130,31 @@ function ResultsView({
       shown: { ...shown, [list]: nextShown(results[list].length, shown[list]) },
     });
 
+  // The map draws only the rows the lists show. Memoised, so the map's features are only worked
+  // out again when the rows or the shown counts change.
+  const mapResults = useMemo(
+    () => ({
+      ...results,
+      targets: visibleRows(results.targets, shown.targets),
+      nearestMisses: visibleRows(results.nearestMisses, shown.nearestMisses),
+    }),
+    [results, shown.targets, shown.nearestMisses],
+  );
+
   // The Segment "Show on map" picked, until its popup closes.
   const [selection, setSelection] = useState<SegmentMapSelection | null>(null);
   const showOnMap = (segmentId: number) =>
     setSelection((current) => ({ segmentId, request: (current?.request ?? 0) + 1 }));
   const clearSelection = (segmentId: number) =>
     setSelection((current) => (current?.segmentId === segmentId ? null : current));
-  // A poll that drops the selected Segment clears it (its layer goes, closing its popup).
+  // A poll that drops the selected Segment, or pushes it past the shown rows, clears it (its
+  // layer goes, closing its popup).
   const selectedId = selection?.segmentId;
   const selectedOnMap =
     selectedId !== undefined &&
-    [...results.targets, ...results.nearestMisses].some((row) => row.segmentId === selectedId);
+    [...mapResults.targets, ...mapResults.nearestMisses].some(
+      (row) => row.segmentId === selectedId,
+    );
   useEffect(() => {
     if (selectedId !== undefined && !selectedOnMap) clearSelection(selectedId);
   }, [selectedId, selectedOnMap]);
@@ -250,7 +264,7 @@ function ResultsView({
       )}
 
       {showsSegmentMap(results) && (
-        <SegmentMapPanel results={results} selection={selection} onPopupClose={clearSelection} />
+        <SegmentMapPanel results={mapResults} selection={selection} onPopupClose={clearSelection} />
       )}
 
       <ResultsSection
