@@ -224,3 +224,10 @@
   (no save, a handful of Nominatim calls), then can tick P9.
 - Notes: P8's Leaflet `_leaflet_pos` error (pick + save within 250 ms) didn't show up here, since
   the live pass never saves.
+
+## P9 - Full pass, retry (2026-10-01) - STILL BLOCKED, not ticked
+- Done: retried the blocked step once. `pnpm dev:live` still logs "NOMINATIM_USER_AGENT is not
+  set, so place search is unavailable", so the real postcode search and reverse lookup still
+  can't be checked. Stopped the servers; no code changes.
+- Human: same as above. Add `NOMINATIM_USER_AGENT=myKOM/0.1 (<your contact>)` to .env (or approve
+  running `NOMINATIM_USER_AGENT="…" pnpm dev:live`), then rerun the loop.
